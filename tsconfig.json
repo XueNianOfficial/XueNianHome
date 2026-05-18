@@ -1,0 +1,20 @@
+{
+  // Nuxt 4 TypeScript 配置 — 由 nuxt prepare 自动生成引用
+  // 如需添加自定义类型，请在 app/types/ 中定义，Nuxt 会自动发现
+  // https://nuxt.com/docs/guide/concepts/typescript
+  "files": [],
+  "references": [
+    {
+      "path": "./.nuxt/tsconfig.app.json"
+    },
+    {
+      "path": "./.nuxt/tsconfig.server.json"
+    },
+    {
+      "path": "./.nuxt/tsconfig.shared.json"
+    },
+    {
+      "path": "./.nuxt/tsconfig.node.json"
+    }
+  ]
+}

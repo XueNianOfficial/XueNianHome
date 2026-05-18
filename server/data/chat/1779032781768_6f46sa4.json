@@ -1,0 +1,69 @@
+{
+  "userId": "1779032781768_6f46sa4",
+  "sessions": [
+    {
+      "id": "1779032781768_3a5jstl",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779032787276_a5n0jzc",
+          "role": "user",
+          "content": "你好，很高兴认识你",
+          "timestamp": 1779032787276
+        },
+        {
+          "id": "1779032789948_bhbdkf9",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779032789949
+        },
+        {
+          "id": "1779032789949_mderzvg",
+          "role": "assistant",
+          "content": "很高兴认识你！",
+          "timestamp": 1779032789949
+        },
+        {
+          "id": "1779032789978_v11am81",
+          "role": "assistant",
+          "content": "咱是小狼雪年，也可以叫咱年年哦～",
+          "timestamp": 1779032789978
+        },
+        {
+          "id": "1779032789978_xanzgm7",
+          "role": "assistant",
+          "content": "嗷呜！",
+          "timestamp": 1779032789978
+        },
+        {
+          "id": "1779032824138_satl8hk",
+          "role": "user",
+          "content": "你能查看今天南京的天气吗？",
+          "timestamp": 1779032824138
+        },
+        {
+          "id": "1779032828869_8tkwmyy",
+          "role": "assistant",
+          "content": "呜嘤～",
+          "timestamp": 1779032828869
+        },
+        {
+          "id": "1779032832042_vscky0p",
+          "role": "assistant",
+          "content": "咱没有办法直接看天气预报……\n\n不过你可以告诉咱今天南京是什么天气吗？",
+          "timestamp": 1779032832042
+        },
+        {
+          "id": "1779032832042_v6oov2c",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779032832042
+        }
+      ],
+      "preset": "",
+      "createdAt": 1779032781769,
+      "lastActiveAt": 1779032832042
+    }
+  ],
+  "lastActiveAt": 1779032833534
+}

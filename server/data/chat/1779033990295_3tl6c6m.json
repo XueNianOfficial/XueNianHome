@@ -1,0 +1,45 @@
+{
+  "userId": "1779033990295_3tl6c6m",
+  "sessions": [
+    {
+      "id": "1779033990295_kmdhkzx",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779033996300_nsmw70b",
+          "role": "user",
+          "content": "你好",
+          "timestamp": 1779033996300
+        },
+        {
+          "id": "1779033997933_8j6rtxc",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779033997933
+        },
+        {
+          "id": "1779033997934_7mopg0f",
+          "role": "assistant",
+          "content": "！",
+          "timestamp": 1779033997934
+        },
+        {
+          "id": "1779033997935_jsqpqn8",
+          "role": "assistant",
+          "content": "你好呀，嘿嘿～",
+          "timestamp": 1779033997935
+        },
+        {
+          "id": "1779033998285_0h804b0",
+          "role": "assistant",
+          "content": "咱是小狼雪年，也可以叫咱年年哦！",
+          "timestamp": 1779033998285
+        }
+      ],
+      "preset": "",
+      "createdAt": 1779033990296,
+      "lastActiveAt": 1779033998285
+    }
+  ],
+  "lastActiveAt": 1779033998792
+}

@@ -1,0 +1,159 @@
+{
+  "userId": "1779034158378_40bhysa",
+  "sessions": [
+    {
+      "id": "1779034158378_tmc6at3",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779034163500_r1p7lol",
+          "role": "user",
+          "content": "你好呀，介绍一下你自己吧！",
+          "timestamp": 1779034163500
+        },
+        {
+          "id": "1779034166626_wont1e1",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779034166626
+        },
+        {
+          "id": "1779034166626_rcu05um",
+          "role": "assistant",
+          "content": "！",
+          "timestamp": 1779034166626
+        },
+        {
+          "id": "1779034166656_g3bpa26",
+          "role": "assistant",
+          "content": "你好呀！",
+          "timestamp": 1779034166656
+        },
+        {
+          "id": "1779034167029_o7zrpeh",
+          "role": "assistant",
+          "content": "咱的名字叫雪年，也可以叫咱年年！",
+          "timestamp": 1779034167029
+        },
+        {
+          "id": "1779034167039_avxr6d3",
+          "role": "assistant",
+          "content": "是一只超级可爱的小狼，嘿嘿～",
+          "timestamp": 1779034167039
+        },
+        {
+          "id": "1779034184036_2kwyu1k",
+          "role": "user",
+          "content": "有多可爱",
+          "timestamp": 1779034184037
+        },
+        {
+          "id": "1779034189249_1tu4dt3",
+          "role": "assistant",
+          "content": "欸嘿～",
+          "timestamp": 1779034189249
+        },
+        {
+          "id": "1779034189458_2gey7wo",
+          "role": "assistant",
+          "content": "那你快摸摸咱的头就知道了！",
+          "timestamp": 1779034189458
+        },
+        {
+          "id": "1779034189495_siw20gc",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779034189495
+        },
+        {
+          "id": "1779034206961_9nxj8z3",
+          "role": "user",
+          "content": "你能和我聊什么",
+          "timestamp": 1779034206961
+        },
+        {
+          "id": "1779034212083_1y3iu5k",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779034212083
+        },
+        {
+          "id": "1779034212093_7a67job",
+          "role": "assistant",
+          "content": "什么都可以哦！",
+          "timestamp": 1779034212093
+        },
+        {
+          "id": "1779034213257_rcdx98a",
+          "role": "assistant",
+          "content": "无论是想让年年陪你聊天，还是让咱帮你做事情，年年都会努力尝试的！",
+          "timestamp": 1779034213257
+        },
+        {
+          "id": "1779034213352_y2pirk1",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779034213352
+        },
+        {
+          "id": "1779034235981_fhtcwls",
+          "role": "user",
+          "content": "我现在一个人待在野外好无聊，所以来找你聊天",
+          "timestamp": 1779034235981
+        },
+        {
+          "id": "1779034254980_9foflxv",
+          "role": "assistant",
+          "content": "呜嘤～",
+          "timestamp": 1779034254980
+        },
+        {
+          "id": "1779034255210_o5tke6v",
+          "role": "assistant",
+          "content": "一个人待在野外好寂寞的！",
+          "timestamp": 1779034255210
+        },
+        {
+          "id": "1779034271788_v994z3e",
+          "role": "user",
+          "content": "但也可以享受难得的宁静",
+          "timestamp": 1779034271788
+        },
+        {
+          "id": "1779034276196_xv2la5v",
+          "role": "assistant",
+          "content": "欸嘿～",
+          "timestamp": 1779034276196
+        },
+        {
+          "id": "1779034296878_ednema8",
+          "role": "user",
+          "content": "欸嘿～",
+          "timestamp": 1779034296878
+        },
+        {
+          "id": "1779034312247_bhvvera",
+          "role": "user",
+          "content": "怎么不说话了",
+          "timestamp": 1779034312247
+        },
+        {
+          "id": "1779034322400_xcyaqtt",
+          "role": "assistant",
+          "content": "嗷呜！",
+          "timestamp": 1779034322400
+        },
+        {
+          "id": "1779034322410_qlmr04x",
+          "role": "assistant",
+          "content": "对不起对不起～",
+          "timestamp": 1779034322410
+        }
+      ],
+      "preset": "",
+      "createdAt": 1779034158378,
+      "lastActiveAt": 1779034322410
+    }
+  ],
+  "lastActiveAt": 1779034323603
+}

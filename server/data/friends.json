@@ -1,0 +1,14 @@
+[
+  {
+    "name": "示例好友",
+    "avatar": "/images/头像.png",
+    "description": "这是一个友链示例，你可以替换为自己的好友信息。",
+    "url": "https://example.com"
+  },
+  {
+    "name": "猎空のBlog  ",
+    "avatar": "https://avatars.githubusercontent.com/u/109675857?v=4 ",
+    "description": "一只狼龙的仓库  ",
+    "url": "https://blog.lie-kong.top"
+  }
+]

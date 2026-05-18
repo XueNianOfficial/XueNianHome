@@ -1,0 +1,28 @@
+{
+  "//": "============================================================",
+  "//_name": "雪年个人网站 (XueNianHome)",
+  "//_stack": "Nuxt 4 + Vue 3 + Nitro 服务端",
+  "//": "============================================================",
+  "name": "XueNianHome",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@oxc-minify/binding-linux-x64-gnu": "^0.128.0",
+    "@oxc-parser/binding-linux-x64-gnu": "^0.128.0",
+    "@oxc-transform/binding-linux-x64-gnu": "^0.128.0",
+    "markdown-it": "^14.1.1",
+    "nuxt": "^4.4.5",
+    "vue": "^3.5.34",
+    "vue-router": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2"
+  }
+}

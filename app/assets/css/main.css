@@ -1,0 +1,233 @@
+/* ============================================================
+ *  雪年个人网站 - 全局样式
+ *  定义亮色/暗色主题的 CSS 自定义属性
+ *  配色方案：白色为主 + 蓝色点缀 (#4A90D9)
+ * ============================================================ */
+
+/* ---------- 全局 CSS 重置 ---------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ============================================================
+ *  根级别 CSS 变量（亮色主题 - 默认）
+ * ============================================================ */
+:root {
+  /* --- 背景色 --- */
+  --color-bg-primary: #FAFAFA;       /* 主背景：雪年白 */
+  --color-bg-secondary: #FFFFFF;      /* 次背景：纯白卡片 */
+  --color-bg-tertiary: #F0F4F8;       /* 三级背景：浅灰蓝 */
+  --color-bg-hover: #EBF2FA;          /* 悬停背景 */
+
+  /* --- 文字色 --- */
+  --color-text-primary: #1F2937;      /* 主文字：深灰 */
+  --color-text-secondary: #6B7280;    /* 次文字：中灰 */
+  --color-text-muted: #9CA3AF;        /* 弱化文字：浅灰 */
+  --color-text-inverse: #FFFFFF;      /* 反白文字 */
+
+  /* --- 强调色（雪年蓝） --- */
+  --color-accent: #4A90D9;            /* 主强调色 */
+  --color-accent-light: #7AB8F5;      /* 浅强调色 */
+  --color-accent-dark: #3A7BC8;       /* 深强调色 */
+  --color-accent-bg: #EBF2FA;         /* 强调色背景 */
+  --color-accent-gradient: linear-gradient(135deg, #4A90D9 0%, #7AB8F5 100%);
+
+  /* --- 边框色 --- */
+  --color-border: #E5E7EB;            /* 边框 */
+  --color-border-light: #F3F4F6;      /* 浅边框 */
+
+  /* --- 阴影 --- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+  --shadow-accent: 0 4px 14px rgba(74, 144, 217, 0.25);
+
+  /* --- 圆角 --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* --- 过渡 --- */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.5s ease;
+
+  /* --- 字体 --- */
+  --font-sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================================
+ *  暗色主题（通过 .dark 类在 html 上切换）
+ * ============================================================ */
+html.dark {
+  --color-bg-primary: #0F172A;        /* 暗色主背景：深蓝灰 */
+  --color-bg-secondary: #1E293B;      /* 暗色次背景 */
+  --color-bg-tertiary: #334155;       /* 暗色三级背景 */
+  --color-bg-hover: #2D3A4F;          /* 暗色悬停背景 */
+
+  --color-text-primary: #F1F5F9;      /* 暗色主文字 */
+  --color-text-secondary: #94A3B8;    /* 暗色次文字 */
+  --color-text-muted: #64748B;        /* 暗色弱化文字 */
+  --color-text-inverse: #0F172A;      /* 暗色反白文字 */
+
+  --color-accent: #60A5FA;            /* 暗色强调色（稍亮） */
+  --color-accent-light: #93C5FD;
+  --color-accent-dark: #3B82F6;
+  --color-accent-bg: #1E3A5F;
+  --color-accent-gradient: linear-gradient(135deg, #60A5FA 0%, #93C5FD 100%);
+
+  --color-border: #334155;
+  --color-border-light: #1E293B;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+  --shadow-accent: 0 4px 14px rgba(96, 165, 250, 0.3);
+}
+
+/* ============================================================
+ *  全局基础样式
+ * ============================================================ */
+html {
+  font-family: var(--font-sans);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* 链接样式 */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-accent-dark);
+}
+
+/* 选中颜色 */
+::selection {
+  background-color: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* ============================================================
+ *  工具类
+ * ============================================================ */
+@layer components {
+  /* 卡片容器 */
+  .card {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition-normal), transform var(--transition-normal), border-color var(--transition-normal);
+  }
+
+  .card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-accent-light);
+  }
+
+  /* 蓝色按钮 */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    background: var(--color-accent-gradient);
+    color: var(--color-text-inverse);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+    box-shadow: var(--shadow-accent);
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(74, 144, 217, 0.35);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* 描边按钮 */
+  .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 24px;
+    background: transparent;
+    color: var(--color-accent);
+    border: 2px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .btn-outline:hover {
+    background: var(--color-accent);
+    color: var(--color-text-inverse);
+  }
+
+  /* 容器 */
+  .container-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 80px 24px 40px;
+  }
+
+  /* 章节标题 */
+  .section-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .section-subtitle {
+    font-size: 1.1rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 2rem;
+  }
+}

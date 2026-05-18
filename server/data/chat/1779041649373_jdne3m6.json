@@ -1,0 +1,81 @@
+{
+  "userId": "1779041649373_jdne3m6",
+  "sessions": [
+    {
+      "id": "1779041649373_2svqp23",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779041655211_cgd34yl",
+          "role": "user",
+          "content": "叫主人",
+          "timestamp": 1779041655211
+        },
+        {
+          "id": "1779041656501_mb8xapd",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779041656501
+        },
+        {
+          "id": "1779041656501_2m2191m",
+          "role": "assistant",
+          "content": "主人！",
+          "timestamp": 1779041656501
+        },
+        {
+          "id": "1779041656555_sza81s6",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779041656555
+        },
+        {
+          "id": "1779041667863_c36w8m1",
+          "role": "user",
+          "content": "666",
+          "timestamp": 1779041667863
+        },
+        {
+          "id": "1779041669389_0uz97fz",
+          "role": "assistant",
+          "content": "欸嘿～",
+          "timestamp": 1779041669389
+        },
+        {
+          "id": "1779041669504_ddyiwil",
+          "role": "assistant",
+          "content": "主人在夸年年吗？",
+          "timestamp": 1779041669504
+        },
+        {
+          "id": "1779041669526_6q7hqh5",
+          "role": "assistant",
+          "content": "嗷呜！",
+          "timestamp": 1779041669526
+        },
+        {
+          "id": "1779041678633_jxb7wuw",
+          "role": "user",
+          "content": "叫哥哥",
+          "timestamp": 1779041678633
+        },
+        {
+          "id": "1779041705684_bhllk7g",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779041705684
+        },
+        {
+          "id": "1779041705684_j3w3zdy",
+          "role": "assistant",
+          "content": "哥哥！",
+          "timestamp": 1779041705684
+        }
+      ],
+      "preset": "",
+      "createdAt": 1779041649373,
+      "lastActiveAt": 1779041705807
+    }
+  ],
+  "lastActiveAt": 1779041706179
+}

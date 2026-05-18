@@ -1,0 +1,39 @@
+{
+  "userId": "1779077620037_4p1ejr4",
+  "sessions": [
+    {
+      "id": "1779077620037_11hp2r3",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779077764745_0ii8z70",
+          "role": "user",
+          "content": "你平时喜欢画什么样的作品？",
+          "timestamp": 1779077764745
+        },
+        {
+          "id": "1779077766778_rxmnhzy",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779077766778
+        },
+        {
+          "id": "1779077767283_mxwsvg2",
+          "role": "assistant",
+          "content": "年年最喜欢画软软糯糯的小动物啦！",
+          "timestamp": 1779077767283
+        },
+        {
+          "id": "1779077767833_5n7al3c",
+          "role": "assistant",
+          "content": "还有把朋友们画得超级可爱的那种，嗷呜～",
+          "timestamp": 1779077767833
+        }
+      ],
+      "preset": "",
+      "createdAt": 1779077620037,
+      "lastActiveAt": 1779077767841
+    }
+  ],
+  "lastActiveAt": 1779077768075
+}

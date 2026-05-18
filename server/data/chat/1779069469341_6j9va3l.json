@@ -1,0 +1,99 @@
+{
+  "userId": "1779069469341_6j9va3l",
+  "sessions": [
+    {
+      "id": "1779069469342_gi01b2m",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779069483040_lnraquh",
+          "role": "user",
+          "content": "你平时喜欢画什么样的作品？",
+          "timestamp": 1779069483041
+        },
+        {
+          "id": "1779069495568_cftaxbg",
+          "role": "assistant",
+          "content": "嘿嘿～",
+          "timestamp": 1779069495568
+        },
+        {
+          "id": "1779069495970_0h09m01",
+          "role": "assistant",
+          "content": "年年喜欢画软软的、毛茸茸的东西！",
+          "timestamp": 1779069495970
+        },
+        {
+          "id": "1779069496103_7ln4h4y",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779069496103
+        },
+        {
+          "id": "1779069496710_v0y2nl3",
+          "role": "assistant",
+          "content": "要是能画出好朋友的样子，年年会更开心的欸嘿～",
+          "timestamp": 1779069496710
+        },
+        {
+          "id": "1779069555139_6u0os7k",
+          "role": "user",
+          "content": "那让我成为年年的好朋友，好不好呀",
+          "timestamp": 1779069555139
+        },
+        {
+          "id": "1779069556548_guqdstd",
+          "role": "assistant",
+          "content": "嗷呜！",
+          "timestamp": 1779069556548
+        },
+        {
+          "id": "1779069556571_2zn8euf",
+          "role": "assistant",
+          "content": "好哒好哒！",
+          "timestamp": 1779069556571
+        },
+        {
+          "id": "1779069556675_hj8xxqq",
+          "role": "assistant",
+          "content": "\n\n咱现在就是最好的好朋友啦～",
+          "timestamp": 1779069556675
+        },
+        {
+          "id": "1779069557182_qzj12td",
+          "role": "assistant",
+          "content": "嘿嘿！",
+          "timestamp": 1779069557182
+        },
+        {
+          "id": "1779069571413_pa6w52a",
+          "role": "user",
+          "content": "好哦~（摸摸）",
+          "timestamp": 1779069571413
+        },
+        {
+          "id": "1779069572850_p6sbtpx",
+          "role": "assistant",
+          "content": "呜嘤～",
+          "timestamp": 1779069572850
+        },
+        {
+          "id": "1779069578114_c2t8fz2",
+          "role": "user",
+          "content": "嘿嘿~",
+          "timestamp": 1779069578114
+        },
+        {
+          "id": "1779069585148_hdk6x8c",
+          "role": "assistant",
+          "content": "欸嘿～",
+          "timestamp": 1779069585148
+        }
+      ],
+      "preset": "",
+      "createdAt": 1779069469342,
+      "lastActiveAt": 1779069585250
+    }
+  ],
+  "lastActiveAt": 1779069586412
+}
