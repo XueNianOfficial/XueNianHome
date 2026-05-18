@@ -10,8 +10,11 @@
 export default defineEventHandler(async () => {
   const posts = await getAllBlogPosts()
 
+  // 移除内部字段（仅暴露公开信息）
+  const safePosts = posts.map(({ draft: _, ...safe }) => safe)
+
   return {
     success: true,
-    data: posts
+    data: safePosts
   }
 })

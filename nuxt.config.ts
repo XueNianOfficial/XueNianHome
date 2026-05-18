@@ -30,7 +30,6 @@ export default defineNuxtConfig({
     head: {
       meta: [
         { 'http-equiv': 'X-Content-Type-Options', content: 'nosniff' },
-        { 'http-equiv': 'X-Frame-Options', content: 'DENY' },
         { 'http-equiv': 'Referrer-Policy', content: 'strict-origin-when-cross-origin' }
       ]
     }
@@ -89,7 +88,14 @@ export default defineNuxtConfig({
    * ============================================================ */
   nitro: {
     // 预设：本地 Node.js 服务
-    preset: 'node-server'
+    preset: 'node-server',
+
+
+    // 路由规则：阻止 IPX 远程 URL 代理（SSRF 双重防护，配合中间件）
+    routeRules: {
+      '/_ipx/_/http:/**': { redirect: '/' },
+      '/_ipx/_/https:/**': { redirect: '/' }
+    }
   }
 
   /* ============================================================

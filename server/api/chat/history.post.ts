@@ -10,6 +10,9 @@ import { saveUserChat, loadUserChat } from '../../utils/chat-storage'
 import type { UserChatData } from '../../utils/chat-storage'
 
 export default defineEventHandler(async (event) => {
+  // CSRF 防护
+  csrfProtection(event)
+
   const body = await readBody(event)
   const { userId, sessions, replace } = body
 

@@ -10,6 +10,9 @@ import { existsSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
+  // CSRF 防护
+  csrfProtection(event)
+
   const query = getQuery(event)
   const userId = query.userId as string
   const sessionId = query.sessionId as string | undefined

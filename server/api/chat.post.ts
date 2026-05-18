@@ -26,6 +26,9 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // CSRF 防护
+  csrfProtection(event)
+
   try {
     const body = await readBody(event)
     const { messages, preset, stream } = body

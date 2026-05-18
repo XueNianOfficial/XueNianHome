@@ -1,2 +1,19 @@
 User-Agent: *
-Disallow:
+Disallow: /admin
+Disallow: /api/
+Disallow: /_ipx/
+Disallow: /_nuxt/
+
+# 禁止索引草稿和内部数据
+Disallow: /server/
+Disallow: /content/
+
+# 允许公开页面
+Allow: /
+Allow: /blog
+Allow: /gallery
+Allow: /friends
+Allow: /chat
+
+# Sitemap（如有）
+# Sitemap: https://xuenian.hellofurry.cn/sitemap.xml

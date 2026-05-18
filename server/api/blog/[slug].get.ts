@@ -26,8 +26,19 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // 安全：禁止通过 API 访问草稿文章
+  if (post.draft) {
+    throw createError({
+      statusCode: 404,
+      message: '文章未找到'
+    })
+  }
+
+  // 移除内部字段（仅暴露公开信息）
+  const { draft: _, ...safePost } = post
+
   return {
     success: true,
-    data: post
+    data: safePost
   }
 })
