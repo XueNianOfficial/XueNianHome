@@ -30,7 +30,7 @@
           <span class="nav-icon">📝</span> 博客
         </NuxtLink>
         <NuxtLink to="/gallery" class="nav-link" active-class="nav-link--active">
-          <span class="nav-icon">🖼️</span> 画作
+          <span class="nav-icon">🖼️</span> 画廊
         </NuxtLink>
         <NuxtLink to="/friends" class="nav-link" active-class="nav-link--active">
           <span class="nav-icon">🔗</span> 友链

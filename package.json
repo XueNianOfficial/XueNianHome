@@ -11,7 +11,11 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "admin:add": "node scripts/admin-accounts.mjs add",
+    "admin:list": "node scripts/admin-accounts.mjs list",
+    "admin:delete": "node scripts/admin-accounts.mjs delete",
+    "admin:passwd": "node scripts/admin-accounts.mjs passwd"
   },
   "dependencies": {
     "@oxc-minify/binding-linux-x64-gnu": "^0.128.0",

@@ -10,8 +10,8 @@
     <div class="container-page">
       <!-- 页面标题 -->
       <header class="page-header">
-        <h1 class="section-title">🖼️ 画作展示</h1>
-        <p class="section-subtitle">用画笔描绘毛茸茸的世界</p>
+        <h1 class="section-title">🖼️ 画廊</h1>
+        <p class="section-subtitle">毛茸茸的世界w</p>
       </header>
 
       <!-- 加载状态 -->
@@ -98,7 +98,7 @@
 import type { GalleryImage } from '~/types'
 
 useHead({
-  title: '画作展示'
+  title: '画廊'
 })
 
 /** 图片列表（从 API 动态获取） */

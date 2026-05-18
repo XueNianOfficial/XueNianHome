@@ -20,7 +20,7 @@
       <!-- 画作卡片 -->
       <NuxtLink to="/gallery" class="feature-card card">
         <div class="card-icon card-icon--gallery">🖼️</div>
-        <h3 class="card-title">画作</h3>
+        <h3 class="card-title">画廊</h3>
         <p class="card-desc">毛茸茸的角色设计、插画和创意作品</p>
         <span class="card-link">
           欣赏画作 <span class="card-arrow">→</span>

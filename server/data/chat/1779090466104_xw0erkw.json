@@ -1,0 +1,45 @@
+{
+  "userId": "1779090466104_xw0erkw",
+  "sessions": [
+    {
+      "id": "1779019770806_s1j20it",
+      "name": "新对话",
+      "messages": [
+        {
+          "id": "1779090500026_caa1zp8",
+          "role": "user",
+          "content": "你好呀，介绍一下你自己吧！",
+          "timestamp": 1779090500026
+        },
+        {
+          "id": "1779090502539_t59kmwi",
+          "role": "assistant",
+          "content": "嗷呜～",
+          "timestamp": 1779090502539
+        },
+        {
+          "id": "1779090504220_iljlddb",
+          "role": "assistant",
+          "content": "你好呀！",
+          "timestamp": 1779090504220
+        },
+        {
+          "id": "1779090505352_1195dc1",
+          "role": "assistant",
+          "content": "咱是雪年，是一只可爱的小狼！",
+          "timestamp": 1779090505352
+        },
+        {
+          "id": "1779090506500_cv3tsh7",
+          "role": "assistant",
+          "content": "也可以亲亲地叫咱年年哦，嘿嘿～",
+          "timestamp": 1779090506500
+        }
+      ],
+      "preset": "Gemma4(雪年)",
+      "createdAt": 1779019770806,
+      "lastActiveAt": 1779090506529
+    }
+  ],
+  "lastActiveAt": 1779090510973
+}

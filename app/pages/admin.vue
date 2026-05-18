@@ -10,20 +10,29 @@
     <div v-if="!isLoggedIn" class="admin-login-page">
       <div class="login-card card">
         <h2>🔐 管理后台</h2>
-        <p class="login-desc">请输入管理密码</p>
+        <p class="login-desc">请输入管理员账号和密码</p>
         <form @submit.prevent="handleLogin" class="login-form">
+          <input
+            v-model="username"
+            type="text"
+            placeholder="用户名"
+            class="login-input"
+            autocomplete="username"
+            :disabled="loginLoading"
+          />
           <input
             v-model="password"
             type="password"
             placeholder="密码"
             class="login-input"
+            autocomplete="current-password"
             :disabled="loginLoading"
           />
           <p v-if="loginError" class="login-error">{{ loginError }}</p>
           <button
             type="submit"
             class="btn-primary login-btn"
-            :disabled="!password || loginLoading"
+            :disabled="!username || !password || loginLoading"
           >
             {{ loginLoading ? '验证中...' : '登录' }}
           </button>
@@ -35,7 +44,10 @@
     <div v-else class="admin-panel">
       <div class="admin-header">
         <h1>⚙️ 管理后台</h1>
-        <button class="btn-outline" @click="handleLogout">退出登录</button>
+        <div class="admin-header-right">
+          <span class="admin-user">👤 {{ currentUser }}</span>
+          <button class="btn-outline" @click="handleLogout">退出登录</button>
+        </div>
       </div>
 
       <!-- Tab 切换 -->
@@ -90,8 +102,10 @@ const activeTab = ref<'blog' | 'gallery' | 'friends' | 'ai' | 'chat'>('blog')
 /** 登录状态 */
 const isLoggedIn = ref(false)
 const isChecking = ref(true)
+const currentUser = ref('')
 
 /** 登录表单 */
+const username = ref('')
 const password = ref('')
 const loginLoading = ref(false)
 const loginError = ref('')
@@ -99,8 +113,11 @@ const loginError = ref('')
 /** 检查登录状态 */
 async function checkAuth() {
   try {
-    const res = await $fetch<{ authenticated: boolean }>('/api/admin/check')
+    const res = await $fetch<{ authenticated: boolean; user?: { username: string; displayName: string } }>('/api/admin/check')
     isLoggedIn.value = res.authenticated
+    if (res.user) {
+      currentUser.value = res.user.displayName || res.user.username
+    }
   } catch {
     isLoggedIn.value = false
   }
@@ -112,11 +129,13 @@ async function handleLogin() {
   loginLoading.value = true
   loginError.value = ''
   try {
-    await $fetch('/api/admin/login', {
+    const res = await $fetch<{ success: boolean; user: { username: string; displayName: string } }>('/api/admin/login', {
       method: 'POST',
-      body: { password: password.value }
+      body: { username: username.value, password: password.value }
     })
     isLoggedIn.value = true
+    currentUser.value = res.user.displayName || res.user.username
+    username.value = ''
     password.value = ''
   } catch (e: any) {
     loginError.value = e?.data?.message || '登录失败'
@@ -215,6 +234,17 @@ onMounted(() => {
 .admin-header h1 {
   font-size: 1.5rem;
   margin: 0;
+}
+
+.admin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.admin-user {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
 }
 
 /* Tab 导航 */

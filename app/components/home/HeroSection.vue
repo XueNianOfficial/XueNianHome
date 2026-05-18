@@ -45,7 +45,7 @@
             📝 阅读博客
           </NuxtLink>
           <NuxtLink to="/gallery" class="btn-outline">
-            🖼️ 欣赏画作
+            🖼️ 欣赏画廊
           </NuxtLink>
         </div>
       </div>

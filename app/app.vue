@@ -15,10 +15,9 @@
 <script setup lang="ts">
 /**
  * 根组件逻辑
- * - 导入全局 CSS 样式
+ * - 全局 CSS 样式在 nuxt.config.ts 的 css 配置中引入
  * - 使用 useHead 设置全局 SEO 元数据
  */
-import './assets/css/main.css'
 
 useHead({
   titleTemplate: '%s · 雪年',
