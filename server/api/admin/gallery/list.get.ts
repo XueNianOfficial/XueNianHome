@@ -3,6 +3,7 @@
  * 列出 public/images/ 下的所有图片
  */
 import { requireAuth } from '../../../utils/admin-auth'
+import { loadGalleryMeta } from '../../../utils/gallery-meta'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
@@ -16,18 +17,24 @@ export default defineEventHandler(async (event) => {
   const files = await readdir(imgDir)
   const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico']
 
+  const metaMap = loadGalleryMeta()
+
   const images = await Promise.all(
     files
       .filter(f => imageExts.some(ext => f.toLowerCase().endsWith(ext)))
       .map(async (filename) => {
         const filePath = join(imgDir, filename)
         const stats = await stat(filePath)
+        const meta = metaMap[filename]
         return {
           filename,
           path: `/images/${filename}`,
           size: stats.size,
           sizeFormatted: formatSize(stats.size),
-          modifiedAt: stats.mtime.toISOString()
+          modifiedAt: stats.mtime.toISOString(),
+          title: meta?.title || filename.replace(/\.[^.]+$/, ''),
+          description: meta?.description || '',
+          category: meta?.category || 'other'
         }
       })
   )

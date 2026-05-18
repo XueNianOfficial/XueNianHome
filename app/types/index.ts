@@ -155,6 +155,8 @@ export interface GalleryImage {
   description?: string
   /** 图片分类 */
   category?: 'illustration' | 'avatar' | 'logo' | 'other'
+  /** 文件名（用于管理后台定位） */
+  filename?: string
 }
 
 // ---------- 404 小恐龙游戏相关类型 ----------
