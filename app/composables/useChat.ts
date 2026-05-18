@@ -24,6 +24,28 @@ const BUBBLE_DELAY_MAX = 2000
 /** 用于拆分气泡的标点符号正则（匹配连续标点） */
 const SENTENCE_PATTERN = /([^。？！～！？]+)([。？！～！？]+)/g
 
+/** 从 Cookie 读取 CSRF Token */
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/)
+  return match ? decodeURIComponent(match[1]!) : null
+}
+
+/** 为 fetch options 添加 CSRF 头（状态变更方法） */
+function withCsrf(options: RequestInit = {}): RequestInit {
+  const method = (options.method || 'GET').toUpperCase()
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const token = getCsrfToken()
+    if (token) {
+      options.headers = {
+        ...options.headers,
+        'x-csrf-token': token
+      }
+    }
+  }
+  return options
+}
+
 /**
  * 按标点符号拆分文本，连续标点合并为一个气泡
  * 例："你好！这个是测试。。。然后呢～"→["你好！","这个是测试。。。","然后呢～"]
@@ -518,7 +540,7 @@ export function useChat() {
     }))
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat', withCsrf({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -526,7 +548,7 @@ export function useChat() {
           preset: session.preset || undefined,
           stream: true
         })
-      })
+      }))
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
@@ -681,7 +703,7 @@ export function useChat() {
     }))
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat', withCsrf({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -689,7 +711,7 @@ export function useChat() {
           preset: session.preset || undefined,
           stream: true
         })
-      })
+      }))
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
@@ -697,6 +719,7 @@ export function useChat() {
         isLoading.value = false
         return
       }
+      // --- 第二个 fetch ---
 
       const reader = response.body?.getReader()
       if (!reader) {
@@ -828,24 +851,30 @@ export function useChat() {
     loadFromServer()
     // 页面卸载前刷新 localStorage 并同步到服务器
     window.addEventListener('beforeunload', () => {
-      flushSessions()
-      // 使用 sendBeacon 确保同步请求能发出
-      if (navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({
-          userId: userId.value,
-          sessions: sessions.value.map(s => ({
-            id: s.id,
-            name: s.name,
-            messages: s.messages,
-            preset: s.preset,
-            createdAt: s.createdAt,
-            lastActiveAt: s.lastActiveAt
-          })),
-          replace: true
-        })], { type: 'application/json' })
-        navigator.sendBeacon('/api/chat/history', blob)
-      }
+    flushSessions()
+    // 使用 fetch + keepalive 替代 sendBeacon，以支持 CSRF 头
+    const body = JSON.stringify({
+      userId: userId.value,
+      sessions: sessions.value.map(s => ({
+        id: s.id,
+        name: s.name,
+        messages: s.messages,
+        preset: s.preset,
+        createdAt: s.createdAt,
+        lastActiveAt: s.lastActiveAt
+      })),
+      replace: true
     })
+    fetch('/api/chat/history', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getCsrfToken() ? { 'x-csrf-token': getCsrfToken()! } : {})
+      },
+      body,
+      keepalive: true
+    }).catch(() => { /* 页面卸载，忽略错误 */ })
+  })
   }
 
   // ==================== 返回 ====================
