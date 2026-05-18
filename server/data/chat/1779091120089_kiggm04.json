@@ -22,12 +22,24 @@
           "role": "assistant",
           "content": "你好呀！",
           "timestamp": 1779091135636
+        },
+        {
+          "id": "1779092070768_un79h0d",
+          "role": "user",
+          "content": "2000 CC 0.9% 氯化钠注射液雾化吸入",
+          "timestamp": 1779092070768
+        },
+        {
+          "id": "1779092074129_oi1n3nn",
+          "role": "assistant",
+          "content": "呜嘤～",
+          "timestamp": 1779092074129
         }
       ],
       "preset": "",
       "createdAt": 1779091120090,
-      "lastActiveAt": 1779091135637
+      "lastActiveAt": 1779092075839
     }
   ],
-  "lastActiveAt": 1779091138267
+  "lastActiveAt": 1779092084972
 }
