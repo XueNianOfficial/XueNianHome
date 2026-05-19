@@ -125,6 +125,21 @@
             ></textarea>
           </div>
 
+          <div class="form-group">
+            <label>头像 URL（可选）</label>
+            <div class="avatar-input-row">
+              <input
+                v-model="preset.avatar"
+                class="form-input"
+                placeholder="留空则使用默认头像，如 /images/chat/preset-avatar.png"
+              />
+              <div v-if="preset.avatar" class="avatar-preview">
+                <img :src="preset.avatar" alt="预设头像预览" class="avatar-preview-img" @error="onAvatarError($event)" />
+              </div>
+            </div>
+            <span class="form-hint">支持本地路径（如 /images/头像.png）或完整 URL</span>
+          </div>
+
           <div class="form-row">
             <label class="checkbox-label">
               <input type="checkbox" v-model="preset.supportsVision" />
@@ -169,6 +184,7 @@ interface PresetForm {
   systemPrompt: string
   supportsVision: boolean
   supportsAudio: boolean
+  avatar: string
 }
 
 /** 设置表单数据（管理后台专用，对应服务端 AISettings） */
@@ -231,7 +247,8 @@ async function loadSettings() {
         model: p.model || '',
         systemPrompt: p.systemPrompt || '',
         supportsVision: p.supportsVision || false,
-        supportsAudio: p.supportsAudio || false
+        supportsAudio: p.supportsAudio || false,
+        avatar: p.avatar || ''
       }))
     }
   } catch (e: any) {
@@ -249,13 +266,20 @@ function addPreset() {
     model: 'gpt-3.5-turbo',
     systemPrompt: '',
     supportsVision: false,
-    supportsAudio: false
+    supportsAudio: false,
+    avatar: ''
   })
 }
 
 /** 删除预设 */
 function removePreset(index: number) {
   form.presets.splice(index, 1)
+}
+
+/** 头像加载失败时隐藏预览 */
+function onAvatarError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img) img.style.display = 'none'
 }
 
 /** 保存设置 */
@@ -430,6 +454,32 @@ onMounted(() => {
   height: 16px;
   accent-color: var(--color-accent);
   cursor: pointer;
+}
+
+/* 头像预览 */
+.avatar-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar-input-row .form-input {
+  flex: 1;
+}
+
+.avatar-preview {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid var(--color-border);
+}
+
+.avatar-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 @media (max-width: 640px) {

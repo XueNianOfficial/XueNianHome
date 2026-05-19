@@ -290,6 +290,13 @@ export function useChat() {
     return preset?.supportsAudio || false
   })
 
+  /** 当前预设头像（为空时使用默认头像） */
+  const currentPresetAvatar = computed(() => {
+    if (!currentPreset.value) return ''
+    const preset = presets.value.find(p => p.name === currentPreset.value)
+    return preset?.avatar || ''
+  })
+
   /** 是否有记忆 */
   const hasMemory = computed(() => messages.value.length > 0)
 
@@ -1078,6 +1085,7 @@ export function useChat() {
     error,
     presets,
     currentPreset,
+    currentPresetAvatar,
     presetsLoaded,
     supportsVision,
     supportsAudio,

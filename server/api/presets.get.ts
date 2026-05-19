@@ -17,7 +17,8 @@ export default defineEventHandler(async () => {
     name: p.name,
     model: p.model,
     supportsVision: p.supportsVision || false,
-    supportsAudio: p.supportsAudio || false
+    supportsAudio: p.supportsAudio || false,
+    avatar: p.avatar || ''
   }))
 
   // 默认配置的功能信息

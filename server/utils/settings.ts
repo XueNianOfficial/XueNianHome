@@ -38,6 +38,8 @@ export interface AISettingsPreset {
   supportsVision?: boolean
   /** 是否支持音频输入 */
   supportsAudio?: boolean
+  /** 预设头像 URL（可选，为空则使用默认头像） */
+  avatar?: string
 }
 
 /**

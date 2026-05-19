@@ -109,7 +109,7 @@
     <!-- 消息列表 -->
     <div ref="messagesContainer" class="chat-messages">
       <div v-if="messages.length === 0" class="chat-welcome">
-        <img src="/images/头像.png" alt="雪年的头像" class="about-avatar" width="180" height="180">
+        <img :src="welcomeAvatar" alt="AI 头像" class="about-avatar" width="180" height="180" @error="onWelcomeAvatarError">
         <h3>你好，这里是雪年！</h3>
         <p>一只热爱艺术与代码的小狼，很高兴认识你～<br />有什么想聊的吗？</p>
         <div class="welcome-prompts">
@@ -255,7 +255,7 @@ const {
   sessions, activeSessionId, activeSession,
   messages, isLoading, error,
   sendMessage, clearError, clearMemory,
-  presets, currentPreset, presetsLoaded,
+  presets, currentPreset, currentPresetAvatar, presetsLoaded,
   loadPresets, selectPreset,
   supportsVision, supportsAudio,
   hasMemory,
@@ -274,6 +274,17 @@ const renamingSession = ref<ChatSession | null>(null)
 const renameText = ref('')
 
 const selectedPreset = ref(currentPreset.value)
+
+/** 欢迎页使用的头像（预设头像 > 默认头像） */
+const welcomeAvatar = computed(() => currentPresetAvatar.value || '/images/头像.png')
+
+/** 欢迎页头像加载失败时回退 */
+function onWelcomeAvatarError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img && img.src !== '/images/头像.png') {
+    img.src = '/images/头像.png'
+  }
+}
 
 const quickPrompts = [
   '你好呀，介绍一下你自己吧！',

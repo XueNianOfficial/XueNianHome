@@ -9,7 +9,7 @@
   <div class="chat-message" :class="`chat-message--${message.role}`">
     <!-- AI 消息头像（左侧） -->
     <div v-if="message.role === 'assistant'" class="message-avatar">
-      <img src="/images/头像.png" alt="雪年的头像" class="avatar-img" width="36" height="36">
+      <img :src="aiAvatar" alt="AI 头像" class="avatar-img" width="36" height="36" @error="onAiAvatarError">
     </div>
 
     <!-- 消息主体 -->
@@ -96,7 +96,18 @@ const props = defineProps<{
   message: ChatMessage
 }>()
 
-const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly } = useChat()
+const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly, currentPresetAvatar } = useChat()
+
+/** AI 消息使用的头像（预设头像 > 默认头像） */
+const aiAvatar = computed(() => currentPresetAvatar.value || '/images/头像.png')
+
+/** 头像加载失败时回退到默认头像 */
+function onAiAvatarError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img && img.src !== '/images/头像.png') {
+    img.src = '/images/头像.png'
+  }
+}
 
 /** 是否正在编辑此条消息 */
 const isEditing = computed(() => editingMessageId.value === props.message.id)
