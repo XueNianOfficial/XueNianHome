@@ -4,6 +4,7 @@
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { loadGalleryMeta } from '../../../utils/gallery-meta'
+import { getPublicImagesDir } from '../../../utils/image-dir'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
@@ -11,7 +12,7 @@ import { existsSync } from 'node:fs'
 export default defineEventHandler(async (event) => {
   requireAuth(event)
 
-  const imgDir = join(process.cwd(), 'public/images')
+  const imgDir = getPublicImagesDir()
   if (!existsSync(imgDir)) return { success: true, data: [] }
 
   const files = await readdir(imgDir)

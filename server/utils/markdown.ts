@@ -79,6 +79,18 @@ function setCache<T>(key: string, data: T): void {
   cache.set(key, { data, timestamp: Date.now() })
 }
 
+/**
+ * 清除博客相关缓存（保存/删除文章后调用）
+ */
+export function clearBlogCache(slug?: string): void {
+  // 清除文章列表缓存
+  cache.delete('all_posts')
+  // 如果指定了 slug，同时清除该文章缓存
+  if (slug) {
+    cache.delete(`post_${slug}`)
+  }
+}
+
 // ---------- markdown-it 实例 ----------
 
 /** markdown-it 渲染器（全局单例，安全配置） */

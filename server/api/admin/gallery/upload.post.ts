@@ -4,6 +4,7 @@
  * 支持 multipart/form-data 上传
  */
 import { requireAuth } from '../../../utils/admin-auth'
+import { getPublicImagesDir } from '../../../utils/image-dir'
 import { writeFile } from 'node:fs/promises'
 import { mkdirSync, existsSync } from 'node:fs'
 import { join, extname } from 'node:path'
@@ -14,7 +15,7 @@ const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 export default defineEventHandler(async (event) => {
   requireAuth(event)
 
-  const imgDir = join(process.cwd(), 'public/images')
+  const imgDir = getPublicImagesDir()
   if (!existsSync(imgDir)) mkdirSync(imgDir, { recursive: true })
 
   // 读取 multipart form data
@@ -48,6 +49,14 @@ export default defineEventHandler(async (event) => {
     const filePath = join(imgDir, safeName)
 
     await writeFile(filePath, part.data)
+
+    // 同时写入源目录（兼容 dev/build 切换）
+    const sourceDir = join(process.cwd(), 'public', 'images')
+    if (imgDir !== sourceDir) {
+      if (!existsSync(sourceDir)) mkdirSync(sourceDir, { recursive: true })
+      await writeFile(join(sourceDir, safeName), part.data)
+    }
+
     uploaded.push(safeName)
   }
 

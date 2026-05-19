@@ -24,6 +24,25 @@ const BUBBLE_DELAY_MAX = 2000
 /** 用于拆分气泡的标点符号正则（匹配连续标点） */
 const SENTENCE_PATTERN = /([^。？！～！？]+)([。？！～！？]+)/g
 
+/** 尖括号标签过滤正则（去除 AI 输出的 <thinking> 等标签及内容） */
+const ANGLE_BRACKET_PATTERN = /<[^>]+>([^<]*)<\/[^>]+>/g
+const REMNANT_TAG_PATTERN = /<[^>]*>/g
+
+/**
+ * 去除 AI 输出中的尖括号标签及其内容（如 <thinking>...</thinking>）
+ * 迭代移除最内层标签对，再清理残余孤立标签，最后合并多余空白
+ */
+function stripAngleBrackets(text: string): string {
+  let result = text
+  let prev = ''
+  while (prev !== result) {
+    prev = result
+    result = result.replace(ANGLE_BRACKET_PATTERN, '')
+  }
+  result = result.replace(REMNANT_TAG_PATTERN, '')
+  return result.replace(/\s{2,}/g, ' ').trim()
+}
+
 /** 从 Cookie 读取 CSRF Token */
 function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null
@@ -74,51 +93,157 @@ function splitByPunctuation(text: string): { completed: string[]; remaining: str
 }
 
 /**
+ * 过滤 parts 中 AI API 无法处理的图片 URL（仅保留 base64 data URL）
+ * 防止服务端相对 URL（如 /images/chat/xxx.png）被发送到 AI API 导致报错
+ */
+function safeAIParts(parts?: ContentPart[]): ContentPart[] | undefined {
+  if (!parts || parts.length === 0) return undefined
+  const filtered = parts.filter(p => {
+    if (p.type === 'image_url' && p.image_url?.url) {
+      // 只保留 base64 data URL，丢弃服务端相对/绝对 URL
+      return p.image_url.url.startsWith('data:')
+    }
+    return true // 保留非 image_url 类型的 part
+  })
+  return filtered.length > 0 ? filtered : undefined
+}
+
+// ==================== 模块级响应式状态（单例，所有组件共享） ====================
+
+/** 用户唯一标识（持久化到 localStorage，用于服务端存储） */
+const userId = ref<string>('')
+
+/** 所有会话列表 */
+const sessions = ref<ChatSession[]>([])
+
+/** 当前活跃会话 ID */
+const activeSessionId = ref<string>('')
+
+/** 是否正在加载 AI 回复 */
+const isLoading = ref(false)
+
+/** 流式传输中尚未完成句子的文本（用于显示"思考中"） */
+const streamingContent = ref('')
+
+/** 待发出的气泡队列（带延迟逐个发射） */
+const bubbleQueue = ref<string[]>([])
+
+/** 气泡队列是否正在处理 */
+let bubbleProcessing = false
+
+/** 取消当前队列处理的哨兵 */
+let bubbleCancelToken = 0
+
+/** 错误信息 */
+const error = ref<string | null>(null)
+
+/** 可用预设列表 */
+const presets = ref<ChatPreset[]>([])
+
+/** 预设是否已加载 */
+const presetsLoaded = ref(false)
+
+/** 正在编辑的消息 ID */
+const editingMessageId = ref<string | null>(null)
+
+/** 待发送的图片（base64 data URLs） */
+const pendingImages = ref<string[]>([])
+
+/** localStorage 写入防抖定时器 */
+let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 默认配置是否支持视觉 */
+const defaultSupportsVision = ref(false)
+
+/** 默认配置是否支持音频 */
+const defaultSupportsAudio = ref(false)
+
+/** 是否已完成客户端初始化 */
+let initialized = false
+
+// ==================== 模块级工具函数（操作模块级状态） ====================
+
+/**
+ * 保存会话到 localStorage（防抖 300ms，避免频繁写入）
+ */
+function saveSessions() {
+  if (import.meta.server) return
+  if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
+  saveDebounceTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.value))
+    } catch { /* 忽略存储满等异常 */ }
+  }, SAVE_DEBOUNCE_MS)
+}
+
+/**
+ * 立即刷新待写入的会话数据（页面卸载/关闭时调用）
+ */
+function flushSessions() {
+  if (saveDebounceTimer) {
+    clearTimeout(saveDebounceTimer)
+    saveDebounceTimer = null
+  }
+  if (import.meta.server) return
+  try {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.value))
+  } catch { /* 忽略 */ }
+}
+
+function saveActiveSessionId() {
+  if (import.meta.server) return
+  try {
+    localStorage.setItem(ACTIVE_SESSION_KEY, activeSessionId.value)
+  } catch { /* 忽略 */ }
+}
+
+function loadUserId(): string {
+  if (import.meta.server) return ''
+  try {
+    let id = localStorage.getItem(USER_ID_KEY)
+    if (!id) {
+      id = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+      localStorage.setItem(USER_ID_KEY, id)
+    }
+    return id
+  } catch {
+    return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  }
+}
+
+function loadSessions(): ChatSession[] {
+  if (import.meta.server) return []
+  try {
+    const saved = localStorage.getItem(SESSIONS_KEY)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch { /* 忽略 */ }
+  return []
+}
+
+function loadActiveSessionId(): string {
+  if (import.meta.server) return ''
+  try {
+    return localStorage.getItem(ACTIVE_SESSION_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * useChat - 聊天功能 Composable（单例模式）
+ * 所有组件共享同一份模块级响应式状态
  * @returns 聊天相关的所有状态和方法
  */
 export function useChat() {
-  /** 用户唯一标识（持久化到 localStorage，用于服务端存储） */
-  const userId = ref<string>(loadUserId())
+  // 确保客户端只初始化一次
+  if (!import.meta.server && !initialized) {
+    initState()
+  }
 
-  /** 所有会话列表 */
-  const sessions = ref<ChatSession[]>(loadSessions())
-
-  /** 当前活跃会话 ID */
-  const activeSessionId = ref<string>(loadActiveSessionId())
-
-  /** 是否正在加载 AI 回复 */
-  const isLoading = ref(false)
-
-  /** 流式传输中尚未完成句子的文本（用于显示"思考中"） */
-  const streamingContent = ref('')
-
-  /** 待发出的气泡队列（带延迟逐个发射） */
-  const bubbleQueue = ref<string[]>([])
-
-  /** 气泡队列是否正在处理 */
-  let bubbleProcessing = false
-
-  /** 取消当前队列处理的哨兵 */
-  let bubbleCancelToken = 0
-
-  /** 错误信息 */
-  const error = ref<string | null>(null)
-
-  /** 可用预设列表 */
-  const presets = ref<ChatPreset[]>([])
-
-  /** 预设是否已加载 */
-  const presetsLoaded = ref(false)
-
-  /** 正在编辑的消息 ID */
-  const editingMessageId = ref<string | null>(null)
-
-  /** 待发送的图片（base64 data URLs） */
-  const pendingImages = ref<string[]>([])
-
-  /** localStorage 写入防抖定时器 */
-  let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  // ==================== 计算属性 ====================
 
   /** 当前活跃会话 */
   const activeSession = computed(() => {
@@ -151,12 +276,6 @@ export function useChat() {
     }
   })
 
-  /** 默认配置是否支持视觉 */
-  const defaultSupportsVision = ref(false)
-
-  /** 默认配置是否支持音频 */
-  const defaultSupportsAudio = ref(false)
-
   /** 当前预设支持视觉 */
   const supportsVision = computed(() => {
     if (!currentPreset.value) return defaultSupportsVision.value
@@ -173,79 +292,6 @@ export function useChat() {
 
   /** 是否有记忆 */
   const hasMemory = computed(() => messages.value.length > 0)
-
-  // ==================== 用户标识 ====================
-
-  function loadUserId(): string {
-    if (import.meta.server) return ''
-    try {
-      let id = localStorage.getItem(USER_ID_KEY)
-      if (!id) {
-        id = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-        localStorage.setItem(USER_ID_KEY, id)
-      }
-      return id
-    } catch {
-      return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    }
-  }
-
-  // ==================== 会话管理 ====================
-
-  function loadSessions(): ChatSession[] {
-    if (import.meta.server) return []
-    try {
-      const saved = localStorage.getItem(SESSIONS_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-    } catch { /* 忽略 */ }
-    return []
-  }
-
-  /**
-   * 保存会话到 localStorage（防抖 300ms，避免频繁写入）
-   */
-  function saveSessions() {
-    if (import.meta.server) return
-    if (saveDebounceTimer) clearTimeout(saveDebounceTimer)
-    saveDebounceTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.value))
-      } catch { /* 忽略存储满等异常 */ }
-    }, SAVE_DEBOUNCE_MS)
-  }
-
-  /**
-   * 立即刷新待写入的会话数据（页面卸载/关闭时调用）
-   */
-  function flushSessions() {
-    if (saveDebounceTimer) {
-      clearTimeout(saveDebounceTimer)
-      saveDebounceTimer = null
-    }
-    if (import.meta.server) return
-    try {
-      localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.value))
-    } catch { /* 忽略 */ }
-  }
-
-  function loadActiveSessionId(): string {
-    if (import.meta.server) return ''
-    try {
-      return localStorage.getItem(ACTIVE_SESSION_KEY) || ''
-    } catch {
-      return ''
-    }
-  }
-
-  function saveActiveSessionId() {
-    if (import.meta.server) return
-    try {
-      localStorage.setItem(ACTIVE_SESSION_KEY, activeSessionId.value)
-    } catch { /* 忽略 */ }
-  }
 
   // ==================== 服务端同步 ====================
 
@@ -423,6 +469,92 @@ export function useChat() {
     pendingImages.value = []
   }
 
+  /**
+   * 上传待发送的 base64 图片到服务器，返回 URL 列表
+   * 目的：避免 base64 图片存入聊天记录 JSON，防止 localStorage/服务端存储失败
+   * @returns 成功上传的图片 URL 数组；失败则返回空数组（降级为不保留图片到历史）
+   */
+  async function uploadPendingImages(): Promise<string[]> {
+    if (pendingImages.value.length === 0) return []
+
+    // 分离 base64 和已有 URL
+    const base64Images = pendingImages.value.filter(img => img.startsWith('data:'))
+    const existingUrls = pendingImages.value.filter(img => !img.startsWith('data:'))
+
+    if (base64Images.length === 0) {
+      return existingUrls
+    }
+
+    // 逐张上传，收集成功的 URL
+    const uploadedUrls: string[] = []
+    for (const img of base64Images) {
+      try {
+        const response = await $fetch<{ success: boolean; urls: string[] }>('/api/chat/upload', {
+          method: 'POST',
+          body: { images: [img] }
+        })
+        if (response.success && response.urls.length > 0) {
+          uploadedUrls.push(response.urls[0]!)
+        }
+      } catch (e) {
+        console.warn('聊天图片上传失败，该图片将不保留到历史记录：', e)
+      }
+    }
+
+    return [...existingUrls, ...uploadedUrls]
+  }
+
+  /**
+   * 将指定消息的 base64 图片 parts 替换为服务端轻量 URL
+   * 在 AI 响应完成后异步调用，不阻塞用户交互
+   */
+  async function swapMessageImagesToUrls(messageId: string, base64Parts: ContentPart[]) {
+    if (base64Parts.length === 0) return
+
+    // 提取 base64 data URL
+    const base64Urls = base64Parts
+      .filter(p => p.type === 'image_url' && p.image_url?.url?.startsWith('data:'))
+      .map(p => p.image_url!.url)
+
+    if (base64Urls.length === 0) return
+
+    // 上传到服务器，获取轻量 URL
+    const uploadedUrls: string[] = []
+    for (const img of base64Urls) {
+      try {
+        const response = await $fetch<{ success: boolean; urls: string[] }>('/api/chat/upload', {
+          method: 'POST',
+          body: { images: [img] }
+        })
+        if (response.success && response.urls.length > 0) {
+          uploadedUrls.push(response.urls[0]!)
+        }
+      } catch {
+        // 静默失败，保留原始 base64（虽然大，但至少不丢数据）
+      }
+    }
+
+    if (uploadedUrls.length === 0) return
+
+    // 找到消息并替换 parts
+    const session = sessions.value.find(s => s.id === activeSessionId.value)
+    if (!session) return
+    const msg = session.messages.find(m => m.id === messageId)
+    if (!msg || !msg.parts) return
+
+    // 用服务端 URL 替换对应的 base64 URL
+    let urlIdx = 0
+    for (const part of msg.parts) {
+      if (part.type === 'image_url' && part.image_url?.url?.startsWith('data:') && urlIdx < uploadedUrls.length) {
+        part.image_url.url = uploadedUrls[urlIdx]!
+        urlIdx++
+      }
+    }
+
+    saveSessions()
+    syncToServer()
+  }
+
   // ==================== 流式消息发送 ====================
 
   /**
@@ -512,11 +644,20 @@ export function useChat() {
       image_url: { url: dataUrl, detail: 'auto' as const }
     }))
 
+    // 保存一份 parts 副本，用于 AI 响应后异步上传换取轻量 URL
+    const hasImages = parts.length > 0
+    const partsCopy: ContentPart[] = hasImages
+      ? parts.map(p => ({
+          type: p.type,
+          image_url: p.image_url ? { url: p.image_url.url, detail: p.image_url.detail } : undefined
+        } as ContentPart))
+      : []
+
     const userMessage: ChatMessage = {
       id: generateId(),
       role: 'user' as ChatRole,
       content: content.trim(),
-      parts: parts.length > 0 ? parts : undefined,
+      parts: hasImages ? parts : undefined,
       timestamp: Date.now()
     }
 
@@ -532,11 +673,12 @@ export function useChat() {
     streamingContent.value = ''
     error.value = null
 
-    // 构建请求消息列表（包含新加入的用户消息）
+    // 构建请求消息列表：若当前预设不支持视觉，则完全剥离图片 parts
+    const visionSupported = supportsVision.value
     const requestMessages = session.messages.map(m => ({
       role: m.role,
       content: m.content,
-      parts: m.parts
+      parts: visionSupported ? safeAIParts(m.parts) : undefined
     }))
 
     try {
@@ -589,8 +731,9 @@ export function useChat() {
             if (event.type === 'chunk' && event.content) {
               streamingContent.value += event.content as string
 
-              // 按标点拆分已完成的气泡 → 入队等待发射
-              const { completed, remaining } = splitByPunctuation(streamingContent.value)
+              // 过滤 AI 输出的尖括号标签（如 <thinking>），再按标点拆分气泡
+              const filtered = stripAngleBrackets(streamingContent.value)
+              const { completed, remaining } = splitByPunctuation(filtered)
               enqueueBubbles(completed, session)
               streamingContent.value = remaining
               session.lastActiveAt = Date.now()
@@ -624,9 +767,10 @@ export function useChat() {
         }
       }
 
-      // 流结束后，将剩余文本入队并清空队列
-      if (streamingContent.value.trim()) {
-        enqueueBubbles([streamingContent.value.trim()], session)
+      // 流结束后，过滤剩余文本并入队
+      const finalFiltered1 = stripAngleBrackets(streamingContent.value)
+      if (finalFiltered1) {
+        enqueueBubbles([finalFiltered1], session)
       }
       // 等待所有气泡发射完毕（最多等待 30s）
       await waitForBubbleQueue(30000)
@@ -635,12 +779,21 @@ export function useChat() {
       session.lastActiveAt = Date.now()
       saveSessions()
 
+      // AI 响应完成后，将消息中的 base64 图片异步替换为服务端轻量 URL
+      if (hasImages) {
+        swapMessageImagesToUrls(userMessage.id, partsCopy)
+      }
+
       // 异步同步到服务器
       syncToServer()
     } catch (e: any) {
       console.error('AI 聊天请求失败：', e)
       if (!error.value) {
         error.value = e?.message || '网络请求失败，请检查 API 配置'
+      }
+      // 即使失败也尝试替换图片（避免 base64 撑爆存储）
+      if (hasImages) {
+        swapMessageImagesToUrls(userMessage.id, partsCopy)
       }
     } finally {
       isLoading.value = false
@@ -686,6 +839,27 @@ export function useChat() {
   }
 
   /**
+   * 仅保存编辑内容，不截断后续消息，不重新发送
+   */
+  function saveEditOnly(messageId: string, newContent: string) {
+    if (!newContent.trim()) return
+
+    const session = sessions.value.find(s => s.id === activeSessionId.value)
+    if (!session) return
+
+    const msg = session.messages.find(m => m.id === messageId)
+    if (!msg) return
+
+    msg.content = newContent.trim()
+    msg.edited = true
+    msg.timestamp = Date.now()
+    session.lastActiveAt = Date.now()
+    saveSessions()
+
+    editingMessageId.value = null
+  }
+
+  /**
    * 编辑后重新发送（流式）
    */
   async function sendMessageAfterEdit() {
@@ -696,10 +870,12 @@ export function useChat() {
     streamingContent.value = ''
     error.value = null
 
+    // 检查当前预设是否支持视觉，如不支持则完全剥离图片 parts
+    const visionSupported = supportsVision.value
     const requestMessages = session.messages.map(m => ({
       role: m.role,
       content: m.content,
-      parts: m.parts
+      parts: visionSupported ? safeAIParts(m.parts) : undefined
     }))
 
     try {
@@ -753,7 +929,8 @@ export function useChat() {
             if (event.type === 'chunk' && event.content) {
               streamingContent.value += event.content as string
 
-              const { completed, remaining } = splitByPunctuation(streamingContent.value)
+              const filtered = stripAngleBrackets(streamingContent.value)
+              const { completed, remaining } = splitByPunctuation(filtered)
               enqueueBubbles(completed, session)
               streamingContent.value = remaining
               session.lastActiveAt = Date.now()
@@ -785,8 +962,9 @@ export function useChat() {
         }
       }
 
-      if (streamingContent.value.trim()) {
-        enqueueBubbles([streamingContent.value.trim()], session)
+      const finalFiltered2 = stripAngleBrackets(streamingContent.value)
+      if (finalFiltered2) {
+        enqueueBubbles([finalFiltered2], session)
       }
       await waitForBubbleQueue(30000)
 
@@ -822,59 +1000,69 @@ export function useChat() {
 
   // ==================== 初始化 ====================
 
-  // 初始化默认会话
-  if (!import.meta.server && sessions.value.length === 0) {
-    const id = generateId()
-    sessions.value.push({
-      id,
-      name: '新对话',
-      messages: [],
-      preset: '',
-      createdAt: Date.now(),
-      lastActiveAt: Date.now()
-    })
-    activeSessionId.value = id
-    saveSessions()
-    saveActiveSessionId()
-  }
+  /**
+   * 客户端初始化（仅执行一次）
+   * 从 localStorage 加载数据，创建默认会话，设置服务器同步和卸载处理
+   */
+  function initState() {
+    initialized = true
 
-  if (!import.meta.server && activeSessionId.value && !sessions.value.find(s => s.id === activeSessionId.value)) {
-    const firstSession = sessions.value[0]
-    if (firstSession) {
-      activeSessionId.value = firstSession.id
+    userId.value = loadUserId()
+    sessions.value = loadSessions()
+    activeSessionId.value = loadActiveSessionId()
+
+    // 初始化默认会话
+    if (sessions.value.length === 0) {
+      const id = generateId()
+      sessions.value.push({
+        id,
+        name: '新对话',
+        messages: [],
+        preset: '',
+        createdAt: Date.now(),
+        lastActiveAt: Date.now()
+      })
+      activeSessionId.value = id
+      saveSessions()
+      saveActiveSessionId()
     }
-  }
 
-  // SSR 安全的服务器同步初始化
-  if (!import.meta.server) {
+    // 验证活跃会话有效性
+    if (activeSessionId.value && !sessions.value.find(s => s.id === activeSessionId.value)) {
+      const firstSession = sessions.value[0]
+      if (firstSession) {
+        activeSessionId.value = firstSession.id
+      }
+    }
+
     // 异步从服务器加载历史记录
     loadFromServer()
+
     // 页面卸载前刷新 localStorage 并同步到服务器
     window.addEventListener('beforeunload', () => {
-    flushSessions()
-    // 使用 fetch + keepalive 替代 sendBeacon，以支持 CSRF 头
-    const body = JSON.stringify({
-      userId: userId.value,
-      sessions: sessions.value.map(s => ({
-        id: s.id,
-        name: s.name,
-        messages: s.messages,
-        preset: s.preset,
-        createdAt: s.createdAt,
-        lastActiveAt: s.lastActiveAt
-      })),
-      replace: true
+      flushSessions()
+      const body = JSON.stringify({
+        userId: userId.value,
+        sessions: sessions.value.map(s => ({
+          id: s.id,
+          name: s.name,
+          messages: s.messages,
+          preset: s.preset,
+          createdAt: s.createdAt,
+          lastActiveAt: s.lastActiveAt
+        })),
+        replace: true
+      })
+      fetch('/api/chat/history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getCsrfToken() ? { 'x-csrf-token': getCsrfToken()! } : {})
+        },
+        body,
+        keepalive: true
+      }).catch(() => { /* 页面卸载，忽略错误 */ })
     })
-    fetch('/api/chat/history', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(getCsrfToken() ? { 'x-csrf-token': getCsrfToken()! } : {})
-      },
-      body,
-      keepalive: true
-    }).catch(() => { /* 页面卸载，忽略错误 */ })
-  })
   }
 
   // ==================== 返回 ====================
@@ -908,6 +1096,7 @@ export function useChat() {
     startEdit,
     cancelEdit,
     saveEdit,
+    saveEditOnly,
     addPendingImage,
     removePendingImage,
     clearPendingImages,

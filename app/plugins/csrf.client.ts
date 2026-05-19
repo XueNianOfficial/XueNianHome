@@ -1,31 +1,29 @@
 /**
  * ============================================================
  *  CSRF Token 客户端插件
- *  自动从 Cookie 读取 CSRF Token 并附加到所有 POST/DELETE 请求
- *  与 server/utils/csrf.ts 的 Double-Submit Cookie 模式配合
+ *  使用 Proxy 拦截 $fetch，安全附加 CSRF Token
+ *  保留 ofetch 的所有原生属性（.create, .raw, .native 等）
  * ============================================================
  */
 
 export default defineNuxtPlugin({
   name: 'csrf-protection',
   setup() {
-    /**
-     * 从 Cookie 中读取指定名称的值
-     */
     function getCookieValue(name: string): string | null {
       if (typeof document === 'undefined') return null
       const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`))
       return match ? decodeURIComponent(match[1]!) : null
     }
 
-    // 使用 Proxy 安全地拦截 $fetch，附加 CSRF Token
-    const origFetch = globalThis.$fetch
-    if (origFetch && !(origFetch as any).__csrfPatched) {
-      const wrappedFetch = function (request: any, options?: any) {
+    const origFetch = globalThis.$fetch as any
+    if (!origFetch || origFetch.__csrfPatched) return
+
+    const wrappedFetch = new Proxy(origFetch, {
+      apply(_target, _thisArg, args: [any, any?]) {
+        const [request, options] = args
         const opts = { ...options }
         opts.headers = { ...opts.headers }
 
-        // 仅对状态变更方法添加 CSRF Token
         const method = (opts.method || 'GET').toUpperCase()
         if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
           const token = getCookieValue('csrf_token')
@@ -35,9 +33,13 @@ export default defineNuxtPlugin({
         }
 
         return origFetch(request, opts)
+      },
+      get(target: any, prop: string | symbol, receiver: any) {
+        return Reflect.get(target, prop, receiver)
       }
-      ;(wrappedFetch as any).__csrfPatched = true
-      globalThis.$fetch = wrappedFetch as typeof globalThis.$fetch
-    }
+    })
+
+    wrappedFetch.__csrfPatched = true
+    globalThis.$fetch = wrappedFetch as typeof globalThis.$fetch
   }
 })

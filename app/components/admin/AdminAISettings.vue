@@ -268,13 +268,16 @@ async function handleSave() {
     const res = await $fetch<{ success: boolean; message: string }>('/api/admin/settings', {
       method: 'POST',
       body: {
-        apiKey: form.apiKey.startsWith('****') ? undefined : (form.apiKey || undefined),
+        apiKey: form.apiKey || undefined,
         baseUrl: form.baseUrl,
         model: form.model,
         systemPrompt: form.systemPrompt || undefined,
         supportsVision: form.supportsVision,
         supportsAudio: form.supportsAudio,
-        presets: form.presets.filter(p => p.name && p.model)
+        presets: form.presets.filter(p => p.name && p.model).map(p => ({
+          ...p,
+          apiKey: p.apiKey || undefined
+        }))
       }
     })
     saveMsg.value = res.message || '保存成功'

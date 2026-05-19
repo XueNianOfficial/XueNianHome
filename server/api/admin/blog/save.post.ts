@@ -63,5 +63,11 @@ export default defineEventHandler(async (event) => {
 
   await writeFile(filePath, fileContent, 'utf-8')
 
+  // 清除缓存，确保公开页面实时更新
+  clearBlogCache(slug)
+  if (oldSlug && oldSlug !== slug) {
+    clearBlogCache(oldSlug)
+  }
+
   return { success: true, message: '保存成功' }
 })

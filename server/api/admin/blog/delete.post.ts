@@ -19,5 +19,9 @@ export default defineEventHandler(async (event) => {
   }
 
   await unlink(filePath)
+
+  // 清除缓存，确保公开页面实时更新
+  clearBlogCache(slug)
+
   return { success: true, message: '删除成功' }
 })

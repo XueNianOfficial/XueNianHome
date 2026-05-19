@@ -28,6 +28,7 @@
           <span class="edit-hint">Enter 保存 · Esc 取消</span>
           <div class="edit-btns">
             <button class="btn-edit-cancel" @click="handleCancelEdit">取消</button>
+            <button class="btn-edit-save-only" :disabled="!editContent.trim()" @click="handleSaveEditOnly">仅保存</button>
             <button class="btn-edit-save" :disabled="!editContent.trim()" @click="handleSaveEdit">保存并重发</button>
           </div>
         </div>
@@ -35,7 +36,13 @@
 
       <!-- 普通消息气泡 -->
       <template v-else>
-        <div class="message-bubble">
+        <div
+          class="message-bubble"
+          @contextmenu.prevent="startEditLocal"
+          @touchstart="onTouchStart"
+          @touchend="onTouchEnd"
+          @touchmove="onTouchMove"
+        >
           <!-- 图片展示 -->
           <div v-if="message.parts && message.parts.length > 0" class="message-images">
             <template v-for="(part, idx) in message.parts" :key="idx">
@@ -56,8 +63,8 @@
           </div>
         </div>
 
-        <!-- 用户消息操作按钮 -->
-        <div v-if="message.role === 'user'" class="message-actions">
+        <!-- 消息操作按钮（用户和 AI 消息均可编辑） -->
+        <div class="message-actions">
           <button
             class="msg-action-btn"
             title="编辑消息"
@@ -89,7 +96,7 @@ const props = defineProps<{
   message: ChatMessage
 }>()
 
-const { editingMessageId, startEdit, cancelEdit, saveEdit } = useChat()
+const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly } = useChat()
 
 /** 是否正在编辑此条消息 */
 const isEditing = computed(() => editingMessageId.value === props.message.id)
@@ -126,9 +133,49 @@ function handleSaveEdit() {
   saveEdit(props.message.id, editContent.value)
 }
 
+/** 仅保存编辑（不重发） */
+function handleSaveEditOnly() {
+  if (!editContent.value.trim()) return
+  saveEditOnly(props.message.id, editContent.value)
+}
+
 /** 取消编辑 */
 function handleCancelEdit() {
   cancelEdit()
+}
+
+// ==================== 右键 / 长按编辑 ====================
+
+/** 长按计时器 */
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
+/** 长按触发阈值（ms） */
+const LONG_PRESS_MS = 500
+/** 是否已触发长按（防止 touchend 后再次触发 click） */
+let longPressTriggered = false
+
+function onTouchStart() {
+  longPressTriggered = false
+  longPressTimer = setTimeout(() => {
+    longPressTriggered = true
+    startEditLocal()
+  }, LONG_PRESS_MS)
+}
+
+function onTouchEnd() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+  if (longPressTriggered) {
+    longPressTriggered = false
+  }
+}
+
+function onTouchMove() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
 }
 
 /**
@@ -285,7 +332,7 @@ function viewImage(src: string) {
   font-style: italic;
 }
 
-/* ---------- 用户消息操作按钮 ---------- */
+/* ---------- 消息操作按钮 ---------- */
 .message-actions {
   display: flex;
   gap: 4px;
@@ -294,8 +341,15 @@ function viewImage(src: string) {
   transition: opacity var(--transition-fast);
 }
 
-.chat-message--user:hover .message-actions {
+.chat-message:hover .message-actions {
   opacity: 1;
+}
+
+/* 移动端（触摸设备）始终显示编辑按钮 */
+@media (pointer: coarse) {
+  .message-actions {
+    opacity: 1;
+  }
 }
 
 .msg-action-btn {
@@ -350,6 +404,7 @@ function viewImage(src: string) {
   gap: 6px;
 }
 
+.btn-edit-save-only,
 .btn-edit-save,
 .btn-edit-cancel {
   padding: 4px 12px;
@@ -370,6 +425,21 @@ function viewImage(src: string) {
 }
 
 .btn-edit-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-edit-save-only {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.btn-edit-save-only:hover {
+  background: var(--color-accent-bg);
+}
+
+.btn-edit-save-only:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
