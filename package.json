@@ -22,7 +22,7 @@
     "@oxc-parser/binding-linux-x64-gnu": "^0.128.0",
     "@oxc-transform/binding-linux-x64-gnu": "^0.128.0",
     "markdown-it": "^14.1.1",
-    "nuxt": "^4.4.5",
+    "nuxt": "^4.4.6",
     "vue": "^3.5.34",
     "vue-router": "^5.0.6"
   },
