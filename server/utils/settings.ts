@@ -24,6 +24,8 @@ export interface AISettings {
   supportsVision?: boolean
   /** 默认是否支持音频输入 */
   supportsAudio?: boolean
+  /** 是否启用实验功能：AI 自主管理对话和表情包 */
+  enableExperimental?: boolean
   /** 预设列表 */
   presets: AISettingsPreset[]
 }
@@ -38,6 +40,8 @@ export interface AISettingsPreset {
   supportsVision?: boolean
   /** 是否支持音频输入 */
   supportsAudio?: boolean
+  /** 是否启用实验功能：AI 自主管理对话和表情包 */
+  enableExperimental?: boolean
   /** 预设头像 URL（可选，为空则使用默认头像） */
   avatar?: string
 }
@@ -85,6 +89,7 @@ export function getEffectiveSettings(): AISettings {
     systemPrompt: fileSettings?.systemPrompt || undefined,
     supportsVision: fileSettings?.supportsVision || false,
     supportsAudio: fileSettings?.supportsAudio || false,
+    enableExperimental: fileSettings?.enableExperimental || false,
     presets: fileSettings?.presets || parseEnvPresets()
   }
 }

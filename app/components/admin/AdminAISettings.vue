@@ -64,6 +64,13 @@
             <span>🎤 支持音频（语音输入）</span>
           </label>
         </div>
+
+        <div class="form-row">
+          <label class="checkbox-label experimental-toggle">
+            <input type="checkbox" v-model="form.enableExperimental" />
+            <span>🧪 启用实验功能：AI 自主管理对话和表情包</span>
+          </label>
+        </div>
       </div>
 
       <!-- 预设列表 -->
@@ -150,6 +157,13 @@
               <span>🎤 支持音频（语音输入）</span>
             </label>
           </div>
+
+          <div class="form-row">
+            <label class="checkbox-label experimental-toggle">
+              <input type="checkbox" v-model="preset.enableExperimental" />
+              <span>🧪 启用实验功能：AI 自主管理对话和表情包</span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -184,6 +198,7 @@ interface PresetForm {
   systemPrompt: string
   supportsVision: boolean
   supportsAudio: boolean
+  enableExperimental: boolean
   avatar: string
 }
 
@@ -195,6 +210,7 @@ interface SettingsForm {
   systemPrompt: string
   supportsVision: boolean
   supportsAudio: boolean
+  enableExperimental: boolean
   presets: PresetForm[]
 }
 
@@ -211,6 +227,7 @@ const form = reactive<SettingsForm>({
   systemPrompt: '',
   supportsVision: false,
   supportsAudio: false,
+  enableExperimental: false,
   presets: []
 })
 
@@ -228,6 +245,7 @@ async function loadSettings() {
         systemPrompt: string
         supportsVision: boolean
         supportsAudio: boolean
+        enableExperimental: boolean
         presets: any[]
       }
     }>('/api/admin/settings')
@@ -240,6 +258,7 @@ async function loadSettings() {
       form.systemPrompt = res.data.systemPrompt || ''
       form.supportsVision = res.data.supportsVision || false
       form.supportsAudio = res.data.supportsAudio || false
+      form.enableExperimental = res.data.enableExperimental || false
       form.presets = (res.data.presets || []).map((p: any) => ({
         name: p.name || '',
         apiKey: p.apiKey || '',
@@ -248,6 +267,7 @@ async function loadSettings() {
         systemPrompt: p.systemPrompt || '',
         supportsVision: p.supportsVision || false,
         supportsAudio: p.supportsAudio || false,
+        enableExperimental: p.enableExperimental || false,
         avatar: p.avatar || ''
       }))
     }
@@ -267,6 +287,7 @@ function addPreset() {
     systemPrompt: '',
     supportsVision: false,
     supportsAudio: false,
+    enableExperimental: false,
     avatar: ''
   })
 }
@@ -298,6 +319,7 @@ async function handleSave() {
         systemPrompt: form.systemPrompt || undefined,
         supportsVision: form.supportsVision,
         supportsAudio: form.supportsAudio,
+        enableExperimental: form.enableExperimental,
         presets: form.presets.filter(p => p.name && p.model).map(p => ({
           ...p,
           apiKey: p.apiKey || undefined
@@ -454,6 +476,18 @@ onMounted(() => {
   height: 16px;
   accent-color: var(--color-accent);
   cursor: pointer;
+}
+
+/* 实验功能开关特殊样式 */
+.experimental-toggle {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.08), rgba(59, 130, 246, 0.08));
+  border: 1px dashed var(--color-accent);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+.experimental-toggle:hover {
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.15), rgba(59, 130, 246, 0.15));
 }
 
 /* 头像预览 */

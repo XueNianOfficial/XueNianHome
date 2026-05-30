@@ -38,25 +38,27 @@
       <template v-else>
         <div
           class="message-bubble"
+          :class="{ 'sticker-bubble': isStickerMessage }"
           @contextmenu.prevent="startEditLocal"
           @touchstart="onTouchStart"
           @touchend="onTouchEnd"
           @touchmove="onTouchMove"
         >
           <!-- 图片展示 -->
-          <div v-if="message.parts && message.parts.length > 0" class="message-images">
+          <div v-if="message.parts && message.parts.length > 0" class="message-images" :class="{ 'sticker-images': isStickerMessage }">
             <template v-for="(part, idx) in message.parts" :key="idx">
               <img
                 v-if="part.type === 'image_url' && part.image_url"
                 :src="part.image_url.url"
                 class="message-image"
+                :class="{ 'sticker-img': isStickerMessage }"
                 alt="用户上传的图片"
                 loading="lazy"
                 @click="viewImage(part.image_url!.url)"
               />
             </template>
           </div>
-          <div class="message-content" v-html="renderedContent"></div>
+          <div v-if="!isStickerMessage || !message.parts?.length" class="message-content" v-html="renderedContent"></div>
           <div class="message-meta">
             <span v-if="message.edited" class="message-edited-tag">已编辑</span>
             <span class="message-time">{{ formatTime(message.timestamp) }}</span>
@@ -96,7 +98,16 @@ const props = defineProps<{
   message: ChatMessage
 }>()
 
-const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly, currentPresetAvatar } = useChat()
+const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly, currentPresetAvatar, enableExperimental } = useChat()
+
+/** 是否为实验模式下的纯表情包消息（无文本内容，仅有图片 parts） */
+const isStickerMessage = computed(() => {
+  return enableExperimental.value &&
+    !props.message.content &&
+    props.message.parts &&
+    props.message.parts.length > 0 &&
+    props.message.parts.every(p => p.type === 'image_url')
+})
 
 /** AI 消息使用的头像（预设头像 > 默认头像） */
 const aiAvatar = computed(() => currentPresetAvatar.value || '/images/头像.png')
@@ -321,6 +332,40 @@ function viewImage(src: string) {
 }
 .message-image:hover {
   transform: scale(1.05);
+}
+
+/* ---------- 实验功能：表情包气泡 ---------- */
+.sticker-bubble {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 4px !important;
+}
+
+.sticker-images {
+  justify-content: center;
+}
+
+.sticker-img {
+  max-width: 160px;
+  max-height: 160px;
+  border-radius: 12px;
+  object-fit: contain;
+  border: none;
+  animation: sticker-pop-in 0.3s ease-out;
+}
+
+@keyframes sticker-pop-in {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ---------- 消息元信息 ---------- */

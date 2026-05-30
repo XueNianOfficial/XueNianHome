@@ -21,6 +21,13 @@ const SAVE_DEBOUNCE_MS = 300
 const BUBBLE_DELAY_MIN = 1000
 const BUBBLE_DELAY_MAX = 2000
 
+/** 单次对话消息数量限制 */
+const MESSAGE_WARN_LIMIT = 800
+const MESSAGE_MAX_LIMIT = 1000
+
+/** 滚动窗口模式保留的最近消息数（发送给 AI 的上下文条数） */
+const SLIDING_WINDOW_SIZE = 400
+
 /** 用于拆分气泡的标点符号正则（匹配连续标点） */
 const SENTENCE_PATTERN = /([^。？！～！？]+)([。？！～！？]+)/g
 
@@ -158,6 +165,15 @@ const defaultSupportsVision = ref(false)
 /** 默认配置是否支持音频 */
 const defaultSupportsAudio = ref(false)
 
+/** 默认配置是否启用实验功能 */
+const defaultEnableExperimental = ref(false)
+
+/** 当前流式传输是否处于实验模式 */
+let experimentalStreaming = false
+
+/** 实验模式流式缓冲区（累积未完成的 <message> 内容） */
+let experimentalBuffer = ''
+
 /** 是否已完成客户端初始化 */
 let initialized = false
 
@@ -290,6 +306,13 @@ export function useChat() {
     return preset?.supportsAudio || false
   })
 
+  /** 当前预设是否启用实验功能 */
+  const enableExperimental = computed(() => {
+    if (!currentPreset.value) return defaultEnableExperimental.value
+    const preset = presets.value.find(p => p.name === currentPreset.value)
+    return preset?.enableExperimental || false
+  })
+
   /** 当前预设头像（为空时使用默认头像） */
   const currentPresetAvatar = computed(() => {
     if (!currentPreset.value) return ''
@@ -299,6 +322,34 @@ export function useChat() {
 
   /** 是否有记忆 */
   const hasMemory = computed(() => messages.value.length > 0)
+
+  /** 当前会话消息数是否达到警告阈值（800 条） */
+  const messageLimitWarning = computed(() => messages.value.length >= MESSAGE_WARN_LIMIT && messages.value.length < MESSAGE_MAX_LIMIT)
+
+  /** 当前会话消息数是否达到上限（1000 条） */
+  const messageLimitReached = computed(() => messages.value.length >= MESSAGE_MAX_LIMIT)
+
+  /** 当前会话是否启用了滚动窗口模式（超过上限后裁剪旧消息继续对话） */
+  const slidingWindowActive = computed(() => activeSession.value?.slidingWindow === true)
+
+  /** 是否阻止发送（达到上限且未启用滚动窗口） */
+  const sendBlocked = computed(() => messageLimitReached.value && !slidingWindowActive.value)
+
+  /** 当前会话累计 token 用量（从消息中实时汇总） */
+  const sessionTokenUsage = computed(() => {
+    const msgs = activeSession.value?.messages || []
+    let input = 0
+    let output = 0
+    let total = 0
+    for (const m of msgs) {
+      if (m.tokenUsage) {
+        input += m.tokenUsage.input || 0
+        output += m.tokenUsage.output || 0
+        total += m.tokenUsage.total || 0
+      }
+    }
+    return { input, output, total }
+  })
 
   // ==================== 服务端同步 ====================
 
@@ -436,6 +487,8 @@ export function useChat() {
       session.lastActiveAt = Date.now()
       error.value = null
       streamingContent.value = ''
+      experimentalBuffer = ''
+      experimentalStreaming = false
       pendingImages.value = []
       saveSessions()
     }
@@ -446,11 +499,12 @@ export function useChat() {
   async function loadPresets() {
     if (presetsLoaded.value) return
     try {
-      const response = await $fetch<{ success: boolean; data: { presets: ChatPreset[]; defaultModel: string; defaultSupportsVision?: boolean; defaultSupportsAudio?: boolean } }>('/api/presets')
+      const response = await $fetch<{ success: boolean; data: { presets: ChatPreset[]; defaultModel: string; defaultSupportsVision?: boolean; defaultSupportsAudio?: boolean; defaultEnableExperimental?: boolean } }>('/api/presets')
       if (response.success && response.data) {
         presets.value = response.data.presets
         defaultSupportsVision.value = response.data.defaultSupportsVision || false
         defaultSupportsAudio.value = response.data.defaultSupportsAudio || false
+        defaultEnableExperimental.value = response.data.defaultEnableExperimental || false
       }
     } catch {
       // 预设加载失败不影响聊天功能
@@ -562,6 +616,93 @@ export function useChat() {
     syncToServer()
   }
 
+  // ==================== 实验功能：客户端响应解析 ====================
+
+  /**
+   * 从 AI 流式输出中解析实验模式的气泡
+   * 提取完整的 <message>...</message> 块，分离文本和表情包
+   *
+   * @param rawText - 累积的原始文本（含不完整的标签）
+   * @returns completed - 已完成气泡列表，remaining - 未完成残留在缓冲区
+   */
+  function parseExperimentalChunks(rawText: string): { completed: StickerBubbleClient[]; remaining: string } {
+    const completed: StickerBubbleClient[] = []
+    let lastEnd = 0
+    let remaining = rawText
+
+    // 检查完整 [wait] 信号
+    if (rawText.trim() === '[wait]') {
+      return { completed: [], remaining: '' }
+    }
+
+    // 提取完整的 <message>...</message> 对
+    const messageRegex = /<message>([\s\S]*?)<\/message>/g
+    let match: RegExpExecArray | null
+
+    while ((match = messageRegex.exec(rawText)) !== null) {
+      const innerContent = match[1]!.trim()
+      lastEnd = match.index + match[0].length
+
+      if (!innerContent) continue
+
+      // 检查是否包含 <gif> 标签
+      const gifMatch = innerContent.match(/^<gif>(.+?)<\/gif>$/)
+      if (gifMatch) {
+        let gifName = gifMatch[1]!.trim()
+        if (!gifName.endsWith('.gif')) gifName += '.gif'
+        completed.push({ type: 'gif', content: gifName })
+      } else {
+        const cleanText = innerContent.replace(/<[^>]*>/g, '').trim()
+        if (cleanText) {
+          completed.push({ type: 'text', content: cleanText })
+        }
+      }
+    }
+
+    if (lastEnd > 0) {
+      remaining = rawText.slice(lastEnd)
+      const openTagIdx = remaining.indexOf('<message>')
+      if (openTagIdx !== -1) {
+        remaining = remaining.slice(openTagIdx)
+      } else {
+        remaining = ''
+      }
+    }
+
+    return { completed, remaining }
+  }
+
+  /** 客户端气泡类型（对应服务端 StickerBubble） */
+  interface StickerBubbleClient {
+    type: 'text' | 'gif'
+    content: string
+  }
+
+  /**
+   * 将已解析的气泡批量发射到消息列表
+   */
+  function emitExperimentalBubbles(bubbles: StickerBubbleClient[], session: ChatSession) {
+    for (const bubble of bubbles) {
+      if (bubble.type === 'gif') {
+        // 表情包气泡：content 是文件名（如 害羞.gif），构建图片路径
+        const gifPath = `/images/stickers/${bubble.content}`
+        session.messages.push({
+          id: generateId(),
+          role: 'assistant' as ChatRole,
+          content: '',
+          parts: [{
+            type: 'image_url',
+            image_url: { url: gifPath, detail: 'auto' }
+          }],
+          timestamp: Date.now()
+        })
+      } else {
+        // 普通文本气泡：走现有的气泡延迟发射逻辑
+        enqueueBubbles([bubble.content], session)
+      }
+    }
+  }
+
   // ==================== 流式消息发送 ====================
 
   /**
@@ -642,6 +783,12 @@ export function useChat() {
   async function sendMessage(content: string) {
     if (!content.trim() || isLoading.value) return
 
+    // 检查消息数量上限
+    if (sendBlocked.value) {
+      error.value = `当前会话已达到 ${MESSAGE_MAX_LIMIT} 条消息上限，请创建新对话或启用滚动窗口模式继续聊天。`
+      return
+    }
+
     if (!activeSessionId.value) {
       createSession()
     }
@@ -679,10 +826,18 @@ export function useChat() {
     isLoading.value = true
     streamingContent.value = ''
     error.value = null
+    experimentalStreaming = false
+    experimentalBuffer = ''
 
     // 构建请求消息列表：若当前预设不支持视觉，则完全剥离图片 parts
+    // 若启用了滚动窗口模式，仅发送最近 SLIDING_WINDOW_SIZE 条消息
     const visionSupported = supportsVision.value
-    const requestMessages = session.messages.map(m => ({
+    const isExperimental = enableExperimental.value
+    let contextMessages = session.messages
+    if (slidingWindowActive.value && contextMessages.length > SLIDING_WINDOW_SIZE) {
+      contextMessages = contextMessages.slice(-SLIDING_WINDOW_SIZE)
+    }
+    const requestMessages = contextMessages.map(m => ({
       role: m.role,
       content: m.content,
       parts: visionSupported ? safeAIParts(m.parts) : undefined
@@ -716,6 +871,7 @@ export function useChat() {
       const decoder = new TextDecoder()
       let buffer = ''
       let streamDone = false
+      let streamUsage: { input: number; output: number; total: number } | undefined
 
       while (!streamDone) {
         const { done, value } = await reader.read()
@@ -735,17 +891,46 @@ export function useChat() {
           try {
             const event = JSON.parse(dataStr)
 
-            if (event.type === 'chunk' && event.content) {
-              streamingContent.value += event.content as string
+            // 实验模式：检测 meta 事件
+            if (event.type === 'meta' && event.experimental) {
+              experimentalStreaming = true
+              continue
+            }
 
-              // 过滤 AI 输出的尖括号标签（如 <thinking>），再按标点拆分气泡
-              const filtered = stripAngleBrackets(streamingContent.value)
-              const { completed, remaining } = splitByPunctuation(filtered)
-              enqueueBubbles(completed, session)
-              streamingContent.value = remaining
-              session.lastActiveAt = Date.now()
+            if (event.type === 'chunk' && event.content) {
+              if (experimentalStreaming) {
+                // === 实验模式：累积并解析标签格式 ===
+                experimentalBuffer += event.content as string
+
+                // 检测 [wait] 信号（可能在流式传输中逐步出现）
+                if (experimentalBuffer.trim() === '[wait]') {
+                  // 等待信号：清空缓冲区，不创建任何气泡，标记等待状态
+                  experimentalBuffer = ''
+                  streamingContent.value = '[wait]' // 用于 done 后判断
+                  continue
+                }
+
+                // 解析已完成的气泡
+                const { completed: expBubbles, remaining: expRemaining } = parseExperimentalChunks(experimentalBuffer)
+                experimentalBuffer = expRemaining
+                emitExperimentalBubbles(expBubbles, session)
+                session.lastActiveAt = Date.now()
+              } else {
+                // === 普通模式：过滤标签 + 按标点拆分气泡 ===
+                streamingContent.value += event.content as string
+
+                // 过滤 AI 输出的尖括号标签（如 <thinking>），再按标点拆分气泡
+                const filtered = stripAngleBrackets(streamingContent.value)
+                const { completed, remaining } = splitByPunctuation(filtered)
+                enqueueBubbles(completed, session)
+                streamingContent.value = remaining
+                session.lastActiveAt = Date.now()
+              }
             } else if (event.type === 'done') {
               streamDone = true
+              if (event.usage) {
+                streamUsage = event.usage
+              }
             } else if (event.type === 'error') {
               error.value = event.message || 'AI 回复出错'
               streamDone = true
@@ -766,21 +951,58 @@ export function useChat() {
           if (dataStr && dataStr !== '[DONE]') {
             try {
               const event = JSON.parse(dataStr)
+
+              // 检测最终的 meta 事件
+              if (event.type === 'meta' && event.experimental) {
+                experimentalStreaming = true
+              }
+
               if (event.type === 'chunk' && event.content) {
-                streamingContent.value += event.content as string
+                if (experimentalStreaming) {
+                  experimentalBuffer += event.content as string
+                } else {
+                  streamingContent.value += event.content as string
+                }
+              }
+              // 捕获 usage
+              if (event.usage) {
+                streamUsage = event.usage
               }
             } catch { /* 忽略 */ }
           }
         }
       }
 
-      // 流结束后，过滤剩余文本并入队
-      const finalFiltered1 = stripAngleBrackets(streamingContent.value)
-      if (finalFiltered1) {
-        enqueueBubbles([finalFiltered1], session)
+      if (experimentalStreaming) {
+        // 实验模式：流结束后，解析实验缓冲区中的残留内容
+        // 如果之前检测到 [wait] 信号，不创建任何气泡
+        if (streamingContent.value === '[wait]') {
+          // [wait] 信号 — 不创建任何气泡，静默等待用户继续输入
+          experimentalBuffer = ''
+        } else if (experimentalBuffer.trim()) {
+          const { completed: finalExpBubbles } = parseExperimentalChunks(experimentalBuffer)
+          emitExperimentalBubbles(finalExpBubbles, session)
+        }
+        experimentalBuffer = ''
+        // 等待气泡队列发射完毕
+        await waitForBubbleQueue(30000)
+      } else {
+        // 普通模式：流结束后，过滤剩余文本并入队
+        const finalFiltered1 = stripAngleBrackets(streamingContent.value)
+        if (finalFiltered1) {
+          enqueueBubbles([finalFiltered1], session)
+        }
+        // 等待所有气泡发射完毕（最多等待 30s）
+        await waitForBubbleQueue(30000)
       }
-      // 等待所有气泡发射完毕（最多等待 30s）
-      await waitForBubbleQueue(30000)
+
+      // 将 token 用量附加到当前会话最后一条 AI 消息
+      if (streamUsage && session.messages.length > 0) {
+        const lastMsg = session.messages[session.messages.length - 1]
+        if (lastMsg && lastMsg.role === 'assistant') {
+          lastMsg.tokenUsage = streamUsage
+        }
+      }
 
       streamingContent.value = ''
       session.lastActiveAt = Date.now()
@@ -873,13 +1095,24 @@ export function useChat() {
     const session = sessions.value.find(s => s.id === activeSessionId.value)
     if (!session || session.messages.length === 0) return
 
+    // 检查消息数量上限
+    if (session.messages.length >= MESSAGE_MAX_LIMIT && !session.slidingWindow) {
+      error.value = `当前会话已达到 ${MESSAGE_MAX_LIMIT} 条消息上限，请创建新对话或启用滚动窗口模式继续聊天。`
+      return
+    }
+
     isLoading.value = true
     streamingContent.value = ''
     error.value = null
 
     // 检查当前预设是否支持视觉，如不支持则完全剥离图片 parts
+    // 若启用了滚动窗口模式，仅发送最近 SLIDING_WINDOW_SIZE 条消息
     const visionSupported = supportsVision.value
-    const requestMessages = session.messages.map(m => ({
+    let contextMessages = session.messages
+    if (slidingWindowActive.value && contextMessages.length > SLIDING_WINDOW_SIZE) {
+      contextMessages = contextMessages.slice(-SLIDING_WINDOW_SIZE)
+    }
+    const requestMessages = contextMessages.map(m => ({
       role: m.role,
       content: m.content,
       parts: visionSupported ? safeAIParts(m.parts) : undefined
@@ -914,6 +1147,7 @@ export function useChat() {
       const decoder = new TextDecoder()
       let buffer = ''
       let streamDone = false
+      let streamUsage2: { input: number; output: number; total: number } | undefined
 
       while (!streamDone) {
         const { done, value } = await reader.read()
@@ -943,6 +1177,9 @@ export function useChat() {
               session.lastActiveAt = Date.now()
             } else if (event.type === 'done') {
               streamDone = true
+              if (event.usage) {
+                streamUsage2 = event.usage
+              }
             } else if (event.type === 'error') {
               error.value = event.message || 'AI 回复出错'
               streamDone = true
@@ -964,6 +1201,10 @@ export function useChat() {
               if (event.type === 'chunk' && event.content) {
                 streamingContent.value += event.content as string
               }
+              // 捕获 usage
+              if (event.usage) {
+                streamUsage2 = event.usage
+              }
             } catch { /* 忽略 */ }
           }
         }
@@ -974,6 +1215,14 @@ export function useChat() {
         enqueueBubbles([finalFiltered2], session)
       }
       await waitForBubbleQueue(30000)
+
+      // 将 token 用量附加到当前会话最后一条 AI 消息
+      if (streamUsage2 && session.messages.length > 0) {
+        const lastMsg = session.messages[session.messages.length - 1]
+        if (lastMsg && lastMsg.role === 'assistant') {
+          lastMsg.tokenUsage = streamUsage2
+        }
+      }
 
       streamingContent.value = ''
       session.lastActiveAt = Date.now()
@@ -996,6 +1245,19 @@ export function useChat() {
   }
 
   // ==================== 工具函数 ====================
+
+  /**
+   * 激活当前会话的滚动窗口模式
+   * 超过消息上限后，仅保留最近 SLIDING_WINDOW_SIZE 条消息发送给 AI
+   * 早期消息仍保留在本地但不会作为上下文传给 AI
+   */
+  function activateSlidingWindow() {
+    const session = sessions.value.find(s => s.id === activeSessionId.value)
+    if (!session) return
+    session.slidingWindow = true
+    session.lastActiveAt = Date.now()
+    saveSessions()
+  }
 
   function clearError() {
     error.value = null
@@ -1089,9 +1351,16 @@ export function useChat() {
     presetsLoaded,
     supportsVision,
     supportsAudio,
+    enableExperimental,
     editingMessageId,
     hasMemory,
+    messageLimitWarning,
+    messageLimitReached,
+    slidingWindowActive,
+    sendBlocked,
+    activateSlidingWindow,
     pendingImages,
+    sessionTokenUsage,
     createSession,
     switchSession,
     deleteSession,

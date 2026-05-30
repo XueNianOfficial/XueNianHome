@@ -88,6 +88,18 @@ export interface ChatMessage {
   timestamp: number
   /** 是否已编辑 */
   edited?: boolean
+  /** 本条消息消耗的 token（仅 AI 回复消息有效） */
+  tokenUsage?: TokenUsage
+}
+
+/** Token 用量统计 */
+export interface TokenUsage {
+  /** 输入 token 数（prompt） */
+  input: number
+  /** 输出 token 数（completion） */
+  output: number
+  /** 总计 token 数 */
+  total: number
 }
 
 /** 聊天会话 */
@@ -104,6 +116,8 @@ export interface ChatSession {
   createdAt: number
   /** 最后活跃时间 */
   lastActiveAt: number
+  /** 是否启用滚动窗口模式（超过消息上限后裁剪旧消息继续对话） */
+  slidingWindow?: boolean
 }
 
 /** 聊天状态 */
@@ -126,6 +140,8 @@ export interface ChatPreset {
   supportsVision?: boolean
   /** 是否支持音频输入 */
   supportsAudio?: boolean
+  /** 是否启用实验功能：AI 自主管理对话和表情包 */
+  enableExperimental?: boolean
   /** 预设头像 URL（可选，为空则使用默认头像） */
   avatar?: string
 }
@@ -136,8 +152,24 @@ export interface PresetsResponse {
   data?: {
     presets: ChatPreset[]
     defaultModel: string
+    defaultSupportsVision?: boolean
+    defaultSupportsAudio?: boolean
+    defaultEnableExperimental?: boolean
   }
   error?: string
+}
+
+// ---------- 实验功能：气泡结构 ----------
+
+/** 气泡类型 */
+export type BubbleType = 'text' | 'gif'
+
+/** 单条气泡（实验功能） */
+export interface ChatBubble {
+  /** 气泡类型：文本或表情包 */
+  type: BubbleType
+  /** 气泡内容：文本内容或表情包文件名（如 害羞.gif） */
+  content: string
 }
 
 // ---------- 主题相关类型 ----------

@@ -18,6 +18,7 @@ export default defineEventHandler(async () => {
     model: p.model,
     supportsVision: p.supportsVision || false,
     supportsAudio: p.supportsAudio || false,
+    enableExperimental: p.enableExperimental || false,
     avatar: p.avatar || ''
   }))
 
@@ -30,7 +31,8 @@ export default defineEventHandler(async () => {
       presets: presetInfos,
       defaultModel: config.aiModel || 'gpt-3.5-turbo',
       defaultSupportsVision: defaultCfg.supportsVision || false,
-      defaultSupportsAudio: defaultCfg.supportsAudio || false
+      defaultSupportsAudio: defaultCfg.supportsAudio || false,
+      defaultEnableExperimental: defaultCfg.enableExperimental || false
     }
   }
 })

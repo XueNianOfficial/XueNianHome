@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   requireAuth(event)
 
   const body = await readBody(event)
-  const { apiKey, baseUrl, model, systemPrompt, supportsVision, supportsAudio, presets } = body
+  const { apiKey, baseUrl, model, systemPrompt, supportsVision, supportsAudio, enableExperimental, presets } = body
 
   // 如果 apiKey 是掩码值（以 **** 开头），保留原值
   const existing = loadSettings()
@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
     systemPrompt: systemPrompt || undefined,
     supportsVision: supportsVision || false,
     supportsAudio: supportsAudio || false,
+    enableExperimental: enableExperimental || false,
     presets: finalPresets
   }
 

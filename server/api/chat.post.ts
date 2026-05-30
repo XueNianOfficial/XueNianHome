@@ -7,8 +7,11 @@
  *  POST /api/chat
  *  请求体：{ messages: [{ role, content }], preset?: string, stream?: boolean }
  *
- *  非流式响应体：{ success: boolean, data: { content }, error?: string }
+ *  非流式响应体：
+ *    普通模式：{ success: boolean, data: { content, usage }, error?: string }
+ *    实验模式：{ success: boolean, data: { content, bubbles, experimental: true, usage }, error?: string }
  *  流式响应：SSE 格式 (text/event-stream)
+ *    实验模式先发送 meta 事件：{ type: "meta", experimental: true }
  *    事件类型：
  *    - chunk:  { type: "chunk", content: "..." }
  *    - done:   { type: "done" }
@@ -16,6 +19,9 @@
  *
  *  注意：callAI / callAIStream 从 server/utils/ai.ts 自动导入
  * ============================================================ */
+
+import { parseExperimentalResponse, isWaitSignal } from '../utils/experimental-chat'
+import { getPresetConfig } from '../utils/ai'
 
 export default defineEventHandler(async (event) => {
   // 仅允许 POST 请求
@@ -47,6 +53,9 @@ export default defineEventHandler(async (event) => {
       contentParts: m.contentParts || m.parts
     }))
 
+    // 检测是否启用实验模式
+    const { enableExperimental } = getPresetConfig(preset)
+
     // ========== 流式响应 ==========
     if (stream) {
       // 设置 SSE 响应头
@@ -56,6 +65,11 @@ export default defineEventHandler(async (event) => {
       setHeader(event, 'X-Accel-Buffering', 'no') // 禁用 nginx 缓冲
 
       const res = event.node.res
+
+      // 实验模式：先发送 meta 事件告知前端
+      if (enableExperimental) {
+        res.write(`data: ${JSON.stringify({ type: 'meta', experimental: true })}\n\n`)
+      }
 
       try {
         for await (const ev of callAIStream(mappedMessages, preset)) {
@@ -77,11 +91,35 @@ export default defineEventHandler(async (event) => {
     }
 
     // ========== 非流式响应 ==========
-    const content = await callAI(mappedMessages, preset)
+    const { content, usage, experimental } = await callAI(mappedMessages, preset)
+
+    // 实验模式：解析 AI 回复中的气泡和表情包
+    if (experimental && content) {
+      const parsed = parseExperimentalResponse(content)
+
+      // 处理 [wait] 信号
+      if (isWaitSignal(content)) {
+        return {
+          success: true,
+          data: { content, bubbles: [], experimental: true, wait: true, usage }
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          content,
+          bubbles: parsed.bubbles,
+          experimental: true,
+          wait: false,
+          usage
+        }
+      }
+    }
 
     return {
       success: true,
-      data: { content }
+      data: { content, usage }
     }
   } catch (err: any) {
     console.error('AI 聊天 API 错误：', err)

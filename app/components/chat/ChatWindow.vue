@@ -96,6 +96,13 @@
 
         <div class="memory-controls">
           <span v-if="hasMemory" class="memory-indicator" title="有聊天记录">💾 {{ messages.length }} 条</span>
+          <span
+            v-if="sessionTokenUsage.total > 0"
+            class="token-indicator"
+            title="Token 用量：输入 {{ sessionTokenUsage.input }} + 输出 {{ sessionTokenUsage.output }} = 总计 {{ sessionTokenUsage.total }}"
+          >
+            🎯 {{ sessionTokenUsage.total }}
+          </span>
           <button
             v-if="hasMemory"
             class="btn-memory"
@@ -104,6 +111,29 @@
           >🗑️</button>
         </div>
       </div>
+    </div>
+
+    <!-- 消息数量警告（800 条） -->
+    <div v-if="messageLimitWarning && !messageLimitReached" class="chat-limit-warning">
+      ⚠️ 当前会话已有 {{ messages.length }} 条消息，建议开启新对话以免达到 1000 条上限。
+    </div>
+
+    <!-- 滚动窗口模式提示 -->
+    <div v-if="slidingWindowActive" class="chat-limit-info">
+      🔄 滚动窗口模式：仅保留最近 400 条消息作为 AI 上下文，早期对话记忆已被裁剪，AI 可能遗忘之前的记忆。
+    </div>
+
+    <!-- 消息数量上限（1000 条）— 未启用滚动窗口时显示选择 -->
+    <div v-if="messageLimitReached && !slidingWindowActive" class="chat-limit-reached">
+      <p>🚫 当前会话已达到 1000 条消息上限。</p>
+      <p class="chat-limit-hint">AI 可能因上下文过长而遗忘早期记忆。你可以：</p>
+      <div class="chat-limit-actions">
+        <button class="btn-primary" @click="handleCreateSession">创建新对话</button>
+        <button class="btn-outline" @click="handleActivateSlidingWindow">
+          继续对话（裁剪旧记忆）
+        </button>
+      </div>
+      <p class="chat-limit-note">选择「继续对话」将仅保留最近 400 条消息发送给 AI，早期对话记忆将被忽略。</p>
     </div>
 
     <!-- 消息列表 -->
@@ -157,7 +187,7 @@
         class="btn-input-action"
         title="上传图片"
         @click="triggerImageUpload"
-        :disabled="isLoading"
+        :disabled="isLoading || sendBlocked"
       >🖼️</button>
 
       <button
@@ -165,7 +195,7 @@
         class="btn-input-action"
         :class="{ recording: isRecording }"
         title="按住录音，松手停止"
-        :disabled="isLoading"
+        :disabled="isLoading || sendBlocked"
         @mousedown.prevent="startRecording"
         @mouseup.prevent="stopRecording"
         @mouseleave="cancelRecording"
@@ -178,8 +208,8 @@
         ref="inputRef"
         v-model="inputText"
         class="chat-input"
-        placeholder="输入消息，和雪年聊天...（支持粘贴图片）"
-        :disabled="isLoading"
+        :placeholder="sendBlocked ? '已达到 1000 条消息上限，请选择处理方式' : '输入消息，和雪年聊天...（支持粘贴图片）'"
+        :disabled="isLoading || sendBlocked"
         rows="2"
         @keydown.enter.exact.prevent="handleSend"
         @keydown.enter.shift.exact="inputText += '\n'"
@@ -188,7 +218,7 @@
 
       <button
         class="btn-primary chat-send-btn"
-        :disabled="!inputText.trim() || isLoading"
+        :disabled="!inputText.trim() || isLoading || sendBlocked"
         @click="handleSend"
       >
         <span v-if="!isLoading">发送</span>
@@ -258,7 +288,9 @@ const {
   presets, currentPreset, currentPresetAvatar, presetsLoaded,
   loadPresets, selectPreset,
   supportsVision, supportsAudio,
-  hasMemory,
+  hasMemory, sessionTokenUsage,
+  messageLimitWarning, messageLimitReached,
+  slidingWindowActive, sendBlocked, activateSlidingWindow,
   pendingImages,
   createSession, switchSession, deleteSession, renameSession,
   addPendingImage, removePendingImage, clearPendingImages
@@ -514,6 +546,12 @@ function handleClearMemory() {
   }
 }
 
+function handleActivateSlidingWindow() {
+  if (confirm('启用滚动窗口模式后，AI 将只能看到最近 400 条消息，早期对话记忆会被遗忘。确定继续吗？')) {
+    activateSlidingWindow()
+  }
+}
+
 function scrollToBottom() {
   nextTick(() => {
     if (messagesContainer.value) {
@@ -740,6 +778,14 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.token-indicator {
+  font-size: 0.72rem;
+  color: var(--color-primary);
+  white-space: nowrap;
+  cursor: help;
+  border-bottom: 1px dotted var(--color-primary);
+}
+
 .btn-memory {
   padding: 3px 8px;
   background: none;
@@ -840,6 +886,69 @@ html.dark .btn-memory:hover { background: #3B1111; border-color: #7F1D1D; }
 }
 html.dark .chat-error { background: #3B1111; border-color: #7F1D1D; }
 .chat-error p { margin: 0 0 8px; }
+
+/* ---------- 消息数量警告 / 上限 ---------- */
+.chat-limit-warning {
+  text-align: center;
+  padding: 10px 16px;
+  margin: 0 16px 4px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: var(--radius-sm);
+  color: #92400E;
+  font-size: 0.82rem;
+}
+html.dark .chat-limit-warning { background: #292312; border-color: #78350F; color: #FCD34D; }
+
+.chat-limit-reached {
+  text-align: center;
+  padding: 16px;
+  margin: 8px 16px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: var(--radius-sm);
+  color: #DC2626;
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+html.dark .chat-limit-reached { background: #3B1111; border-color: #7F1D1D; }
+.chat-limit-reached .btn-sm {
+  padding: 6px 16px;
+  font-size: 0.82rem;
+}
+
+.chat-limit-reached .chat-limit-hint {
+  margin: 0;
+}
+
+.chat-limit-reached .chat-limit-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.chat-limit-reached .chat-limit-note {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* 滚动窗口模式提示 */
+.chat-limit-info {
+  text-align: center;
+  padding: 10px 16px;
+  margin: 0 16px 4px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  border-radius: var(--radius-sm);
+  color: #1E40AF;
+  font-size: 0.82rem;
+}
+html.dark .chat-limit-info { background: #1E293B; border-color: #334155; color: #93C5FD; }
 
 /* ---------- 待发送图片 ---------- */
 .pending-images {

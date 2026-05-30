@@ -16,6 +16,7 @@
 
 import { getEffectiveSettings } from './settings'
 import type { AISettings, AISettingsPreset } from './settings'
+import { buildExperimentalPromptExtension } from './experimental-chat'
 
 /** AI 配置接口 */
 export interface AIConfig {
@@ -28,6 +29,8 @@ export interface AIConfig {
   supportsVision?: boolean
   /** 是否支持音频输入 */
   supportsAudio?: boolean
+  /** 是否启用实验功能：AI 自主管理对话和表情包 */
+  enableExperimental?: boolean
 }
 
 /** AI 预设接口（兼容导出） */
@@ -44,7 +47,8 @@ export function getDefaultConfig(): AIConfig {
     model: settings.model || 'gpt-3.5-turbo',
     systemPrompt: settings.systemPrompt || undefined,
     supportsVision: settings.supportsVision || false,
-    supportsAudio: settings.supportsAudio || false
+    supportsAudio: settings.supportsAudio || false,
+    enableExperimental: settings.enableExperimental || false
   }
 }
 
@@ -59,7 +63,7 @@ export function getPresets(): AIPreset[] {
 /**
  * 根据预设名称获取配置
  */
-function getPresetConfig(presetName?: string): AIConfig {
+export function getPresetConfig(presetName?: string): AIConfig {
   if (presetName) {
     const presets = getPresets()
     const preset = presets.find((p) => p.name === presetName)
@@ -70,7 +74,8 @@ function getPresetConfig(presetName?: string): AIConfig {
         model: preset.model,
         systemPrompt: preset.systemPrompt || undefined,
         supportsVision: preset.supportsVision || false,
-        supportsAudio: preset.supportsAudio || false
+        supportsAudio: preset.supportsAudio || false,
+        enableExperimental: preset.enableExperimental || false
       }
     }
   }
@@ -84,11 +89,14 @@ function buildFullMessages(
   messages: { role: string; content: string; contentParts?: { type: string; text?: string; image_url?: { url: string; detail?: string } }[] }[],
   presetName?: string
 ) {
-  const { systemPrompt: customPrompt, supportsVision } = getPresetConfig(presetName)
+  const { systemPrompt: customPrompt, supportsVision, enableExperimental } = getPresetConfig(presetName)
   const systemPromptContent = customPrompt || getSystemPrompt()
 
+  // 实验功能：追加表情包和格式说明到系统提示词
+  const experimentalExtension = enableExperimental ? buildExperimentalPromptExtension() : ''
+
   return [
-    { role: 'system', content: systemPromptContent },
+    { role: 'system', content: systemPromptContent + experimentalExtension },
     ...messages.map(m => {
       // 如果预设不支持视觉，则完全剥离图片 parts，只保留文本
       if (!supportsVision) {
@@ -142,13 +150,13 @@ function stripAngleBrackets(text: string): string {
  * @param messages - 对话消息列表（不含 system prompt，由本函数添加）
  *   每条消息可包含 contentParts（多模态内容片段）
  * @param presetName - 可选，使用的预设名称
- * @returns AI 回复的文本内容
+ * @returns AI 回复的文本内容及 token 用量
  */
 export async function callAI(
   messages: { role: string; content: string; contentParts?: { type: string; text?: string; image_url?: { url: string; detail?: string } }[] }[],
   presetName?: string
-): Promise<string> {
-  const { apiKey, baseUrl, model } = getPresetConfig(presetName)
+): Promise<{ content: string; usage?: { input: number; output: number; total: number }; experimental?: boolean }> {
+  const { apiKey, baseUrl, model, enableExperimental } = getPresetConfig(presetName)
 
   if (!apiKey) {
     throw createError({
@@ -200,8 +208,20 @@ export async function callAI(
     })
   }
 
-  // 过滤 AI 输出中的 <> 标签内容
-  return stripAngleBrackets(rawContent)
+  // 实验模式下保留标签格式，否则过滤 AI 输出中的 <> 标签内容
+  const content = enableExperimental ? (rawContent || '') : stripAngleBrackets(rawContent)
+
+  // 提取 token 用量
+  const usageData = data.usage
+  const usage = usageData
+    ? {
+        input: usageData.prompt_tokens || 0,
+        output: usageData.completion_tokens || 0,
+        total: usageData.total_tokens || 0
+      }
+    : undefined
+
+  return { content, usage, experimental: enableExperimental }
 }
 
 // ==================== 流式调用 ====================
@@ -211,6 +231,12 @@ export interface StreamEvent {
   type: 'chunk' | 'done' | 'error'
   content?: string
   message?: string
+  /** token 用量（仅在 done 事件中携带） */
+  usage?: {
+    input: number     // prompt_tokens
+    output: number    // completion_tokens
+    total: number     // total_tokens
+  }
 }
 
 /**
@@ -276,6 +302,7 @@ export async function* callAIStream(
 
   const decoder = new TextDecoder()
   let buffer = ''
+  let streamUsage: { input: number; output: number; total: number } | undefined
 
   try {
     while (true) {
@@ -293,7 +320,7 @@ export async function* callAIStream(
 
         const data = trimmed.slice(5).trim()
         if (data === '[DONE]') {
-          yield { type: 'done' }
+          yield { type: 'done', usage: streamUsage }
           return
         }
 
@@ -302,6 +329,14 @@ export async function* callAIStream(
           const delta = parsed.choices?.[0]?.delta?.content
           if (delta) {
             yield { type: 'chunk', content: delta }
+          }
+          // 捕获 usage（流式 API 可能在最后一个有内容的 chunk 或单独的 chunk 中返回）
+          if (parsed.usage) {
+            streamUsage = {
+              input: parsed.usage.prompt_tokens || 0,
+              output: parsed.usage.completion_tokens || 0,
+              total: parsed.usage.total_tokens || 0
+            }
           }
         } catch {
           // 忽略解析失败的行
@@ -319,11 +354,19 @@ export async function* callAIStream(
           if (delta) {
             yield { type: 'chunk', content: delta }
           }
+          // 捕获 usage
+          if (parsed.usage) {
+            streamUsage = {
+              input: parsed.usage.prompt_tokens || 0,
+              output: parsed.usage.completion_tokens || 0,
+              total: parsed.usage.total_tokens || 0
+            }
+          }
         } catch { /* 忽略 */ }
       }
     }
 
-    yield { type: 'done' }
+    yield { type: 'done', usage: streamUsage }
   } catch (e: any) {
     yield { type: 'error', message: `流式读取中断：${e.message || '未知错误'}` }
   }
