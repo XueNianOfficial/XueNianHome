@@ -270,6 +270,66 @@
         </div>
       </div>
     </div>
+
+    <!-- 🔧 调试面板 (Shift+D 切换) -->
+    <div v-if="showDebugPanel" class="modal-overlay debug-overlay" @click.self="showDebugPanel = false">
+      <div class="modal card debug-panel">
+        <div class="debug-header">
+          <h3>🔧 调试面板</h3>
+          <div class="debug-header-right">
+            <span class="debug-preset-badge">{{ debugPresetName }} · {{ debugModelName }}</span>
+            <button class="btn-close" @click="showDebugPanel = false">✕</button>
+          </div>
+        </div>
+
+        <div class="debug-body">
+          <!-- 加载系统提示词按钮 -->
+          <div v-if="!debugSystemPromptLoaded" class="debug-load-hint">
+            <button class="btn-outline btn-sm" @click="loadDebugSystemPrompt">📥 加载系统提示词</button>
+            <span class="debug-hint-text">首次打开需手动加载</span>
+          </div>
+
+          <!-- 系统提示词 -->
+          <div class="debug-section">
+            <h4>📝 完整系统提示词</h4>
+            <div class="debug-code-block">
+              <pre>{{ debugSystemPrompt || '(未加载)' }}</pre>
+            </div>
+          </div>
+
+          <!-- 原始 AI 输出 -->
+          <div class="debug-section">
+            <h4>🤖 原始 AI 输出（最近一次）</h4>
+            <div class="debug-code-block">
+              <pre>{{ debugRawOutput || '(暂无输出，发送消息后显示)' }}</pre>
+            </div>
+          </div>
+
+          <!-- 消息统计 -->
+          <div class="debug-section">
+            <h4>📊 当前会话统计</h4>
+            <div class="debug-stats">
+              <div class="debug-stat-item">
+                <span class="debug-stat-label">消息数</span>
+                <span class="debug-stat-value">{{ messages.length }}</span>
+              </div>
+              <div class="debug-stat-item">
+                <span class="debug-stat-label">Token 用量</span>
+                <span class="debug-stat-value">🎯 {{ sessionTokenUsage.total }}</span>
+              </div>
+              <div class="debug-stat-item">
+                <span class="debug-stat-label">实验模式</span>
+                <span class="debug-stat-value">{{ enableExperimental ? '✅ 开启' : '❌ 关闭' }}</span>
+              </div>
+              <div class="debug-stat-item">
+                <span class="debug-stat-label">滚动窗口</span>
+                <span class="debug-stat-value">{{ slidingWindowActive ? '🔄 启用' : '➖ 关闭' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -288,12 +348,16 @@ const {
   presets, currentPreset, currentPresetAvatar, presetsLoaded,
   loadPresets, selectPreset,
   supportsVision, supportsAudio,
+  enableExperimental,
   hasMemory, sessionTokenUsage,
   messageLimitWarning, messageLimitReached,
   slidingWindowActive, sendBlocked, activateSlidingWindow,
   pendingImages,
   createSession, switchSession, deleteSession, renameSession,
-  addPendingImage, removePendingImage, clearPendingImages
+  addPendingImage, removePendingImage, clearPendingImages,
+  // 调试
+  debugRawOutput, debugSystemPrompt, debugPresetName, debugModelName,
+  fetchDebugSystemPrompt
 } = useChat()
 
 const inputText = ref('')
@@ -304,6 +368,40 @@ const messagesContainer = ref<HTMLElement | null>(null)
 const showSessions = ref(false)
 const renamingSession = ref<ChatSession | null>(null)
 const renameText = ref('')
+
+// ==================== 调试面板 ====================
+
+const showDebugPanel = ref(false)
+const debugSystemPromptLoaded = ref(false)
+
+/** 加载调试用系统提示词 */
+async function loadDebugSystemPrompt() {
+  await fetchDebugSystemPrompt()
+  debugSystemPromptLoaded.value = true
+}
+
+/** 键盘快捷键：Shift+D 切换调试面板 */
+function onKeyDown(e: KeyboardEvent) {
+  if (e.key === 'D' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    // 避免在输入框中触发
+    const tag = (e.target as HTMLElement)?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+    e.preventDefault()
+    showDebugPanel.value = !showDebugPanel.value
+    // 首次打开时自动加载系统提示词
+    if (showDebugPanel.value && !debugSystemPromptLoaded.value) {
+      loadDebugSystemPrompt()
+    }
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyDown)
+})
 
 const selectedPreset = ref(currentPreset.value)
 
@@ -1144,6 +1242,124 @@ html.dark .chat-limit-info { background: #1E293B; border-color: #334155; color: 
   height: 16px;
   accent-color: var(--color-accent);
   cursor: pointer;
+}
+
+/* ---------- 调试面板 ---------- */
+.debug-overlay {
+  z-index: 1000;
+}
+
+.debug-panel {
+  max-width: 800px;
+  max-height: 85vh;
+  width: 95%;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-primary);
+  z-index: 1;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.debug-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.debug-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.debug-preset-badge {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.debug-body {
+  padding: 16px 20px 20px;
+}
+
+.debug-load-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.debug-hint-text {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.debug-section {
+  margin-bottom: 16px;
+}
+
+.debug-section h4 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.debug-code-block {
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.debug-code-block pre {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--color-text-primary);
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+
+.debug-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.debug-stat-item {
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debug-stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.debug-stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
 }
 
 /* ---------- 响应式 ---------- */

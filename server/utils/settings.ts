@@ -26,6 +26,8 @@ export interface AISettings {
   supportsAudio?: boolean
   /** 是否启用实验功能：AI 自主管理对话和表情包 */
   enableExperimental?: boolean
+  /** 默认预设名称（空则使用全局默认配置） */
+  defaultPreset?: string
   /** 预设列表 */
   presets: AISettingsPreset[]
 }
@@ -90,6 +92,7 @@ export function getEffectiveSettings(): AISettings {
     supportsVision: fileSettings?.supportsVision || false,
     supportsAudio: fileSettings?.supportsAudio || false,
     enableExperimental: fileSettings?.enableExperimental || false,
+    defaultPreset: fileSettings?.defaultPreset || undefined,
     presets: fileSettings?.presets || parseEnvPresets()
   }
 }

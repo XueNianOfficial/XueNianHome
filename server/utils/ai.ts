@@ -376,7 +376,7 @@ export async function* callAIStream(
  * 获取系统提示词
  * 设定雪年的角色身份和对话风格
  */
-function getSystemPrompt(): string {
+export function getSystemPrompt(): string {
   return `核心规则：
 - 严禁输出任何 <thinking> 、</code>等标签或内心独白。
 - 不要思考, 直接给出回答。

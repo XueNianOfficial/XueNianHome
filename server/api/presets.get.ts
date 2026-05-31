@@ -8,6 +8,7 @@
  * ============================================================ */
 
 import { getPresets, getDefaultConfig } from '../utils/ai'
+import { getEffectiveSettings } from '../utils/settings'
 
 export default defineEventHandler(async () => {
   const config = useRuntimeConfig()
@@ -24,6 +25,7 @@ export default defineEventHandler(async () => {
 
   // 默认配置的功能信息
   const defaultCfg = getDefaultConfig()
+  const settings = getEffectiveSettings()
 
   return {
     success: true,
@@ -32,7 +34,8 @@ export default defineEventHandler(async () => {
       defaultModel: config.aiModel || 'gpt-3.5-turbo',
       defaultSupportsVision: defaultCfg.supportsVision || false,
       defaultSupportsAudio: defaultCfg.supportsAudio || false,
-      defaultEnableExperimental: defaultCfg.enableExperimental || false
+      defaultEnableExperimental: defaultCfg.enableExperimental || false,
+      defaultPreset: settings.defaultPreset || ''
     }
   }
 })

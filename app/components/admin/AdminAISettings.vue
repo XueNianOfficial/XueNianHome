@@ -91,8 +91,25 @@
           class="preset-card"
         >
           <div class="preset-header">
-            <h4>预设 #{{ index + 1 }}</h4>
-            <button class="btn-delete-text" @click="removePreset(index)">删除</button>
+            <h4>
+              预设 #{{ index + 1 }}
+              <span v-if="form.defaultPreset === preset.name" class="default-badge">⭐ 默认</span>
+            </h4>
+            <div class="preset-header-actions">
+              <button
+                v-if="form.defaultPreset !== preset.name && preset.name"
+                class="btn-set-default"
+                title="设为默认预设"
+                @click="form.defaultPreset = preset.name"
+              >⭐ 设为默认</button>
+              <button
+                v-if="form.defaultPreset === preset.name"
+                class="btn-unset-default"
+                title="取消默认"
+                @click="form.defaultPreset = ''"
+              >取消默认</button>
+              <button class="btn-delete-text" @click="removePreset(index)">删除</button>
+            </div>
           </div>
 
           <div class="form-row">
@@ -211,6 +228,7 @@ interface SettingsForm {
   supportsVision: boolean
   supportsAudio: boolean
   enableExperimental: boolean
+  defaultPreset: string
   presets: PresetForm[]
 }
 
@@ -228,6 +246,7 @@ const form = reactive<SettingsForm>({
   supportsVision: false,
   supportsAudio: false,
   enableExperimental: false,
+  defaultPreset: '',
   presets: []
 })
 
@@ -246,6 +265,7 @@ async function loadSettings() {
         supportsVision: boolean
         supportsAudio: boolean
         enableExperimental: boolean
+        defaultPreset: string
         presets: any[]
       }
     }>('/api/admin/settings')
@@ -259,6 +279,7 @@ async function loadSettings() {
       form.supportsVision = res.data.supportsVision || false
       form.supportsAudio = res.data.supportsAudio || false
       form.enableExperimental = res.data.enableExperimental || false
+      form.defaultPreset = res.data.defaultPreset || ''
       form.presets = (res.data.presets || []).map((p: any) => ({
         name: p.name || '',
         apiKey: p.apiKey || '',
@@ -320,6 +341,7 @@ async function handleSave() {
         supportsVision: form.supportsVision,
         supportsAudio: form.supportsAudio,
         enableExperimental: form.enableExperimental,
+        defaultPreset: form.defaultPreset || undefined,
         presets: form.presets.filter(p => p.name && p.model).map(p => ({
           ...p,
           apiKey: p.apiKey || undefined
@@ -423,7 +445,56 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
-.preset-header h4 { margin: 0; font-size: 0.95rem; }
+.preset-header h4 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+
+.preset-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.default-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #D97706;
+  background: rgba(217, 119, 6, 0.1);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.btn-set-default {
+  background: none;
+  border: 1px solid #D97706;
+  color: #D97706;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+.btn-set-default:hover {
+  background: rgba(217, 119, 6, 0.1);
+}
+
+.btn-unset-default {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: var(--font-sans);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+.btn-unset-default:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
 
 .btn-delete-text {
   background: none;

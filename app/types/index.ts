@@ -155,6 +155,7 @@ export interface PresetsResponse {
     defaultSupportsVision?: boolean
     defaultSupportsAudio?: boolean
     defaultEnableExperimental?: boolean
+    defaultPreset?: string
   }
   error?: string
 }

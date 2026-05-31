@@ -174,6 +174,20 @@ let experimentalStreaming = false
 /** 实验模式流式缓冲区（累积未完成的 <message> 内容） */
 let experimentalBuffer = ''
 
+// ==================== 调试缓冲区 ====================
+
+/** 调试：最近一次 AI 原始输出（未经处理） */
+const debugRawOutput = ref('')
+
+/** 调试：当前生效的系统提示词 */
+const debugSystemPrompt = ref('')
+
+/** 调试：当前预设名称 */
+const debugPresetName = ref('')
+
+/** 调试：当前模型名称 */
+const debugModelName = ref('')
+
 /** 是否已完成客户端初始化 */
 let initialized = false
 
@@ -499,12 +513,22 @@ export function useChat() {
   async function loadPresets() {
     if (presetsLoaded.value) return
     try {
-      const response = await $fetch<{ success: boolean; data: { presets: ChatPreset[]; defaultModel: string; defaultSupportsVision?: boolean; defaultSupportsAudio?: boolean; defaultEnableExperimental?: boolean } }>('/api/presets')
+      const response = await $fetch<{ success: boolean; data: { presets: ChatPreset[]; defaultModel: string; defaultSupportsVision?: boolean; defaultSupportsAudio?: boolean; defaultEnableExperimental?: boolean; defaultPreset?: string } }>('/api/presets')
       if (response.success && response.data) {
         presets.value = response.data.presets
         defaultSupportsVision.value = response.data.defaultSupportsVision || false
         defaultSupportsAudio.value = response.data.defaultSupportsAudio || false
         defaultEnableExperimental.value = response.data.defaultEnableExperimental || false
+
+        // 自动选择默认预设（若当前会话未设置预设且存在默认预设）
+        const defaultPresetName = response.data.defaultPreset || ''
+        if (defaultPresetName) {
+          const found = presets.value.find(p => p.name === defaultPresetName)
+          if (found && !currentPreset.value) {
+            currentPreset.value = defaultPresetName
+            saveSessions()
+          }
+        }
       }
     } catch {
       // 预设加载失败不影响聊天功能
@@ -514,6 +538,29 @@ export function useChat() {
 
   function selectPreset(name: string) {
     currentPreset.value = name
+  }
+
+  // ==================== 调试功能 ====================
+
+  /**
+   * 从服务端获取当前预设的完整系统提示词（调试用）
+   */
+  async function fetchDebugSystemPrompt() {
+    try {
+      const preset = currentPreset.value || undefined
+      const query = preset ? `?preset=${encodeURIComponent(preset)}` : ''
+      const response = await $fetch<{
+        success: boolean
+        data: { systemPrompt: string; preset: string; model: string; enableExperimental: boolean }
+      }>(`/api/chat/system-prompt${query}`)
+      if (response.success && response.data) {
+        debugSystemPrompt.value = response.data.systemPrompt
+        debugPresetName.value = response.data.preset
+        debugModelName.value = response.data.model
+      }
+    } catch {
+      debugSystemPrompt.value = '(无法获取系统提示词)'
+    }
   }
 
   // ==================== 图片管理 ====================
@@ -828,6 +875,7 @@ export function useChat() {
     error.value = null
     experimentalStreaming = false
     experimentalBuffer = ''
+    debugRawOutput.value = ''
 
     // 构建请求消息列表：若当前预设不支持视觉，则完全剥离图片 parts
     // 若启用了滚动窗口模式，仅发送最近 SLIDING_WINDOW_SIZE 条消息
@@ -898,6 +946,9 @@ export function useChat() {
             }
 
             if (event.type === 'chunk' && event.content) {
+              // 调试：累积原始 AI 输出
+              debugRawOutput.value += event.content as string
+
               if (experimentalStreaming) {
                 // === 实验模式：累积并解析标签格式 ===
                 experimentalBuffer += event.content as string
@@ -958,6 +1009,7 @@ export function useChat() {
               }
 
               if (event.type === 'chunk' && event.content) {
+                debugRawOutput.value += event.content as string
                 if (experimentalStreaming) {
                   experimentalBuffer += event.content as string
                 } else {
@@ -1353,6 +1405,12 @@ export function useChat() {
     supportsAudio,
     enableExperimental,
     editingMessageId,
+    // 调试
+    debugRawOutput,
+    debugSystemPrompt,
+    debugPresetName,
+    debugModelName,
+    fetchDebugSystemPrompt,
     hasMemory,
     messageLimitWarning,
     messageLimitReached,

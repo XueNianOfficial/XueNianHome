@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
       supportsVision: settings.supportsVision || false,
       supportsAudio: settings.supportsAudio || false,
       enableExperimental: settings.enableExperimental || false,
+      defaultPreset: settings.defaultPreset || '',
       presets: settings.presets.map(p => ({
         ...p,
         apiKey: maskKey(p.apiKey),
