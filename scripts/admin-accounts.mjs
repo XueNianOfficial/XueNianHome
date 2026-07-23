@@ -16,7 +16,7 @@
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { randomBytes, scryptSync } from 'node:crypto'
 import { createInterface } from 'node:readline'
 
 const ACCOUNTS_FILE = join(process.cwd(), 'server/data/admin-accounts.json')
@@ -25,6 +25,7 @@ const ACCOUNTS_FILE = join(process.cwd(), 'server/data/admin-accounts.json')
 //  工具函数（与 admin-accounts.ts 保持同步）
 // ====================================================================
 
+/** 读取账号文件，读取失败时打印错误并退出进程 */
 function loadAccounts() {
   try {
     if (!existsSync(ACCOUNTS_FILE)) return []
@@ -37,11 +38,16 @@ function loadAccounts() {
   }
 }
 
+/** 保存账号列表到 JSON 文件（自动创建目录） */
 function saveAccounts(accounts) {
   mkdirSync(join(process.cwd(), 'server/data'), { recursive: true })
   writeFileSync(ACCOUNTS_FILE, JSON.stringify({ accounts }, null, 2), 'utf-8')
 }
 
+/**
+ * 计算密码的 scrypt 哈希，格式：scrypt:<salt hex>:<hash hex>
+ * 注意：与 server/utils/admin-accounts.ts 中的实现为平行版本，修改时两边必须同步
+ */
 function hashPassword(password) {
   const salt = randomBytes(32)
   const hash = scryptSync(password, salt, 64)
@@ -52,6 +58,12 @@ function hashPassword(password) {
 //  交互式输入
 // ====================================================================
 
+/**
+ * 交互式提问
+ * @param {string} question 提示语
+ * @param {boolean} hidden 为 true 时隐藏输入（密码场景，逐字符回显 *）
+ * @returns {Promise<string>} 用户输入（已 trim）
+ */
 function ask(question, hidden = false) {
   return new Promise(resolve => {
     if (hidden) {

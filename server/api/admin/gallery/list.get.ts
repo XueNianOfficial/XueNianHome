@@ -1,6 +1,8 @@
 /**
- * GET /api/admin/gallery/list
- * 列出 public/images/ 下的所有图片
+ * ============================================================
+ *  画廊管理列表 API - GET /api/admin/gallery/list（需管理员登录）
+ *  列出 public/images/ 下的所有图片，附元数据与格式化大小
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { loadGalleryMeta } from '../../../utils/gallery-meta'

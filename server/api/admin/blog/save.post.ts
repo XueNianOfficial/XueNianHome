@@ -1,11 +1,17 @@
 /**
- * POST /api/admin/blog/save
- * 创建或更新博客文章
+ * ============================================================
+ *  POST /api/admin/blog/save
+ *  创建或更新博客文章（content/blog/{slug}.md）
+ *  安全：requireAuth 鉴权 + csrfProtection 校验；
+ *        slug 经字符白名单校验后才允许拼入文件路径（防路径遍历）
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { writeFile, unlink } from 'node:fs/promises'
 import { mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+
+// 注意：isSafeSlug（slug 白名单校验）与 clearBlogCache 由 Nitro 自动导入
 
 /**
  * 构建 YAML frontmatter 字符串
@@ -31,12 +37,21 @@ function buildFrontmatter(meta: Record<string, any>): string {
 
 export default defineEventHandler(async (event) => {
   requireAuth(event)
+  csrfProtection(event)
 
   const body = await readBody(event)
   const { slug, title, date, description, tags, cover, draft, body: content, oldSlug } = body
 
   if (!slug || !title) {
     throw createError({ statusCode: 400, message: 'slug 和 title 为必填项' })
+  }
+
+  // 安全：slug 直接拼入文件路径，必须为安全字符（否则可写出 content/blog 之外）
+  if (typeof slug !== 'string' || !isSafeSlug(slug)) {
+    throw createError({ statusCode: 400, message: '非法的 slug（仅限字母、数字、下划线、连字符、中文）' })
+  }
+  if (oldSlug && (typeof oldSlug !== 'string' || !isSafeSlug(oldSlug))) {
+    throw createError({ statusCode: 400, message: '非法的 oldSlug' })
   }
 
   const blogDir = join(process.cwd(), 'content/blog')

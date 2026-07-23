@@ -18,17 +18,19 @@ const CLEANUP_INTERVAL_MS = 10 * 60 * 1000
 
 // ==================== 类型定义 ====================
 
-/** 存储的消息格式（与前端 ChatMessage 对应） */
+/** 存储的消息格式（字段与 app/types/index.ts 的 ChatMessage 对应；
+ *  tokenUsage 为前端运行时统计字段，服务端不落盘） */
 export interface StoredMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
-  parts?: { type: string; image_url?: { url: string; detail?: string } }[]
+  /** 多模态内容片段（对应前端 ContentPart，text/image_url） */
+  parts?: { type: string; text?: string; image_url?: { url: string; detail?: string } }[]
   timestamp: number
   edited?: boolean
 }
 
-/** 存储的会话格式 */
+/** 存储的会话格式（字段与 app/types/index.ts 的 ChatSession 对应） */
 export interface StoredSession {
   id: string
   name: string
@@ -36,6 +38,8 @@ export interface StoredSession {
   preset: string
   createdAt: number
   lastActiveAt: number
+  /** 是否启用滑动窗口模式（前端 ChatSession.slidingWindow，服务端原样透传存储） */
+  slidingWindow?: boolean
 }
 
 /** 单个用户的所有聊天数据 */
@@ -47,8 +51,14 @@ export interface UserChatData {
 
 // ==================== 文件路径 ====================
 
+/**
+ * 获取用户聊天数据文件路径
+ * 安全考量：userId 来自客户端（query/body），直接拼路径会被
+ * "../" 路径遍历利用——此处将非 [a-zA-Z0-9_-] 字符全部替换为下划线，
+ * 保证结果文件名始终落在 CHAT_DIR 内
+ */
 function getUserFilePath(userId: string): string {
-  // 防止路径遍历攻击
+  // 防路径遍历：替换所有非法字符（含 "."、"/"、"\"）
   const safeId = userId.replace(/[^a-zA-Z0-9_-]/g, '_')
   return join(CHAT_DIR, `${safeId}.json`)
 }
@@ -57,6 +67,8 @@ function getUserFilePath(userId: string): string {
 
 /**
  * 加载用户聊天数据，自动清理过期内容
+ * @param userId - 用户 ID（客户端生成，路径拼接前会做字符过滤）
+ * @returns 聊天数据；不存在、全部过期或文件损坏时返回 null
  */
 export function loadUserChat(userId: string): UserChatData | null {
   if (!userId) return null
@@ -91,6 +103,7 @@ export function loadUserChat(userId: string): UserChatData | null {
 
 /**
  * 保存用户聊天数据，自动清理过期内容
+ * @param data - 完整用户聊天数据（写盘前先做过期裁剪，并刷新整体活跃时间）
  */
 export function saveUserChat(data: UserChatData): void {
   if (!data.userId) return
@@ -112,6 +125,7 @@ export function saveUserChat(data: UserChatData): void {
 
 /**
  * 删除指定用户的指定会话
+ * @returns true 表示找到并删除（会话删空后顺带删除用户文件）
  */
 export function deleteUserSession(userId: string, sessionId: string): boolean {
   const data = loadUserChat(userId)
@@ -138,6 +152,11 @@ export function deleteUserSession(userId: string, sessionId: string): boolean {
 
 /**
  * 清理用户数据中的过期消息和会话
+ * 裁剪规则（以 7 天为窗口）：
+ * 1. 丢弃 lastActiveAt 超过窗口的会话
+ * 2. 丢弃会话内 timestamp 超过窗口的消息
+ * 3. 再次丢弃被清空消息的会话
+ * 注意：直接原地修改传入对象并返回之
  */
 function cleanupUserData(data: UserChatData): UserChatData {
   const now = Date.now()

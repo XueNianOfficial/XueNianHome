@@ -1,7 +1,8 @@
 <!--
 ============================================================
   雪年个人网站 - 博客列表页
-  展示所有博客文章的卡片列表，按日期倒序排列
+  以卡片网格展示所有博客文章，按日期倒序排列；
+  加载中显示骨架屏，无文章时显示空状态
 ============================================================
 -->
 <template>
@@ -13,28 +14,40 @@
         <p class="section-subtitle">记录创作、技术和生活的点点滴滴</p>
       </header>
 
-      <!-- 加载状态 -->
-      <div v-if="status === 'pending'" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>加载中...</p>
+      <!-- 加载状态：与真实卡片布局一致的骨架屏 -->
+      <div v-if="status === 'pending'" class="blog-grid" aria-hidden="true">
+        <div v-for="i in 6" :key="i" class="skeleton-card card">
+          <div class="skeleton skeleton-cover"></div>
+          <div class="skeleton-body">
+            <div class="skeleton skeleton-line skeleton-line-sm"></div>
+            <div class="skeleton skeleton-line"></div>
+            <div class="skeleton skeleton-line skeleton-line-md"></div>
+            <div class="skeleton-footer">
+              <div class="skeleton skeleton-badge"></div>
+              <div class="skeleton skeleton-badge"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 错误状态 -->
-      <div v-else-if="status === 'error'" class="error-state">
+      <div v-else-if="status === 'error'" class="empty-state">
+        <span class="empty-state-icon">😢</span>
         <p>加载失败，请刷新页面重试</p>
       </div>
 
-      <!-- 文章列表 -->
+      <!-- 文章列表：卡片依次上浮入场（阶梯延迟） -->
       <div v-else class="blog-grid">
         <BlogCard
-          v-for="post in posts"
+          v-for="(post, index) in posts"
           :key="post.slug"
           :post="post"
+          :style="{ animationDelay: `${Math.min(index, 8) * 70}ms` }"
         />
 
         <!-- 空状态 -->
-        <div v-if="posts.length === 0" class="empty-state">
-          <p class="empty-icon">📭</p>
+        <div v-if="posts.length === 0" class="empty-state blog-empty">
+          <span class="empty-state-icon">📭</span>
           <p>还没有文章，敬请期待！</p>
         </div>
       </div>
@@ -67,62 +80,71 @@ const posts = computed(() => postsData.value?.data || [])
 /* ---------- 页面标题 ---------- */
 .page-header {
   text-align: center;
-  margin-bottom: 48px;
+  margin-bottom: var(--space-12);
+  animation: fade-in-up var(--transition-slow) both;
 }
 
 /* ---------- 博客网格 ---------- */
 .blog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 24px;
+  gap: var(--space-6);
 }
 
-/* ---------- 加载状态 ---------- */
-.loading-state {
+/* ---------- 加载骨架屏 ---------- */
+/* 骨架卡片与真实卡片同构（封面 + 文字行 + 徽章），避免加载前后布局跳动 */
+.skeleton-card {
+  overflow: hidden;
+}
+
+.skeleton-cover {
+  aspect-ratio: 2 / 1;
+  border-radius: 0;
+}
+
+.skeleton-body {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 20px;
-  color: var(--color-text-muted);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-6);
 }
 
-.loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
+.skeleton-line {
+  height: 1em;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.skeleton-line-sm {
+  width: 34%;
+  height: 0.8em;
 }
 
-/* ---------- 错误状态 ---------- */
-.error-state {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--color-text-muted);
+.skeleton-line-md {
+  width: 72%;
+}
+
+.skeleton-footer {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.skeleton-badge {
+  width: 56px;
+  height: 22px;
+  border-radius: var(--radius-full);
 }
 
 /* ---------- 空状态 ---------- */
-.empty-state {
+/* 占满整行，居中显示 */
+.blog-empty {
   grid-column: 1 / -1;
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--color-text-muted);
-}
-
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
 }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 640px) {
+  .page-header {
+    margin-bottom: var(--space-8);
+  }
+
   .blog-grid {
     grid-template-columns: 1fr;
   }

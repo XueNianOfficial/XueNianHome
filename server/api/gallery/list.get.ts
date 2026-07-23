@@ -1,6 +1,9 @@
 /**
- * GET /api/gallery/list
- * 公开接口：列出 public/images/ 下的所有图片
+ * ============================================================
+ *  画廊列表 API - GET /api/gallery/list（公开）
+ *  列出 public/images/ 下的所有图片，合并 gallery-meta 中的标题/描述/分类
+ *  按修改时间倒序返回
+ * ============================================================
  */
 import { loadGalleryMeta } from '../../utils/gallery-meta'
 import { getPublicImagesDir } from '../../utils/image-dir'

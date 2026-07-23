@@ -1,10 +1,22 @@
 /* ============================================================
- *  雪年个人网站 - 全局样式
- *  定义亮色/暗色主题的 CSS 自定义属性
- *  配色方案：白色为主 + 蓝色点缀 (#4A90D9)
+ *  雪年个人网站 - 全局样式与设计系统
+ *  ------------------------------------------------------------
+ *  本文件是全站视觉风格的唯一事实来源（Single Source of Truth），
+ *  包含三部分内容：
+ *    1. 全局重置与基础元素样式
+ *    2. 设计令牌（Design Tokens）：亮/暗双主题 CSS 自定义属性
+ *    3. 通用工具类：卡片、按钮、表单、徽章、动画等
+ *
+ *  约定：
+ *  - 组件样式一律使用此处定义的 CSS 变量，禁止硬编码颜色/阴影，
+ *    以保证亮暗主题切换时全站风格统一；
+ *  - 品牌主色为「雪年蓝」#4A90D9，衍生色均由此扩展；
+ *  - 暗色主题通过 html.dark 类切换（见 app/composables/useTheme.ts）。
  * ============================================================ */
 
-/* ---------- 全局 CSS 重置 ---------- */
+/* ============================================================
+ *  1. 全局重置
+ * ============================================================ */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -14,86 +26,143 @@ img {
   height: auto;
 }
 
+button {
+  font-family: inherit;
+}
+
 /* ============================================================
- *  根级别 CSS 变量（亮色主题 - 默认）
+ *  2. 设计令牌 - 亮色主题（默认）
  * ============================================================ */
 :root {
-  /* --- 背景色 --- */
-  --color-bg-primary: #FAFAFA;       /* 主背景：雪年白 */
-  --color-bg-secondary: #FFFFFF;      /* 次背景：纯白卡片 */
-  --color-bg-tertiary: #F0F4F8;       /* 三级背景：浅灰蓝 */
-  --color-bg-hover: #EBF2FA;          /* 悬停背景 */
+  /* ---------- 背景色（由浅到深的层级体系） ---------- */
+  --color-bg-primary: #F7F9FC;        /* 页面主背景：带一丝蓝意的雪白 */
+  --color-bg-secondary: #FFFFFF;      /* 卡片/浮层背景：纯白 */
+  --color-bg-tertiary: #EEF3F9;       /* 三级背景：浅灰蓝，用于分区 */
+  --color-bg-hover: #E8F0FA;          /* 可交互元素的悬停底色 */
+  --color-bg-mask: rgba(15, 23, 42, 0.45); /* 弹窗遮罩层 */
 
-  /* --- 文字色 --- */
-  --color-text-primary: #1F2937;      /* 主文字：深灰 */
-  --color-text-secondary: #6B7280;    /* 次文字：中灰 */
-  --color-text-muted: #9CA3AF;        /* 弱化文字：浅灰 */
-  --color-text-inverse: #FFFFFF;      /* 反白文字 */
+  /* ---------- 文字色 ---------- */
+  --color-text-primary: #1E293B;      /* 主文字：深蓝灰 */
+  --color-text-secondary: #64748B;    /* 次要文字 */
+  --color-text-muted: #94A3B8;        /* 弱化文字（占位符、时间戳等） */
+  --color-text-inverse: #FFFFFF;      /* 反白文字（用于强调色按钮上） */
 
-  /* --- 强调色（雪年蓝） --- */
+  /* ---------- 强调色（雪年蓝） ---------- */
   --color-accent: #4A90D9;            /* 主强调色 */
-  --color-accent-light: #7AB8F5;      /* 浅强调色 */
-  --color-accent-dark: #3A7BC8;       /* 深强调色 */
-  --color-accent-bg: #EBF2FA;         /* 强调色背景 */
-  --color-accent-gradient: linear-gradient(135deg, #4A90D9 0%, #7AB8F5 100%);
+  --color-accent-light: #6FB1F0;      /* 浅强调色：悬停、渐变终点 */
+  --color-accent-dark: #3574C2;       /* 深强调色：链接悬停 */
+  --color-accent-bg: #E8F0FA;         /* 强调色的浅底色（选中态背景） */
+  --color-accent-gradient: linear-gradient(135deg, #4A90D9 0%, #6FB1F0 100%);
 
-  /* --- 边框色 --- */
-  --color-border: #E5E7EB;            /* 边框 */
-  --color-border-light: #F3F4F6;      /* 浅边框 */
+  /* ---------- 语义色（成功/警告/危险） ---------- */
+  --color-success: #10B981;
+  --color-success-bg: #D1FAE5;
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FEF3C7;
+  --color-danger: #EF4444;
+  --color-danger-bg: #FEE2E2;
 
-  /* --- 阴影 --- */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-  --shadow-accent: 0 4px 14px rgba(74, 144, 217, 0.25);
+  /* ---------- 边框色 ---------- */
+  --color-border: #E2E8F0;            /* 常规边框 */
+  --color-border-light: #F1F5F9;      /* 浅边框（分割线） */
 
-  /* --- 圆角 --- */
-  --radius-sm: 6px;
-  --radius-md: 10px;
+  /* ---------- 阴影（柔和的层级阴影体系） ---------- */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-accent: 0 4px 14px rgba(74, 144, 217, 0.28);
+  --shadow-accent-lg: 0 8px 24px rgba(74, 144, 217, 0.36);
+
+  /* ---------- 圆角 ---------- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-xl: 22px;
+  --radius-full: 9999px;              /* 胶囊形（头像、标签、气泡） */
 
-  /* --- 过渡 --- */
+  /* ---------- 字号刻度 ---------- */
+  --text-xs: 0.75rem;                 /* 12px 辅助说明 */
+  --text-sm: 0.875rem;                /* 14px 次要文本 */
+  --text-base: 1rem;                  /* 16px 正文 */
+  --text-lg: 1.125rem;                /* 18px 强调正文 */
+  --text-xl: 1.25rem;                 /* 20px 小标题 */
+  --text-2xl: 1.5rem;                 /* 24px 卡片标题 */
+  --text-3xl: 2rem;                   /* 32px 章节标题 */
+  --text-4xl: 2.75rem;                /* 44px 首页大标题 */
+
+  /* ---------- 间距刻度（8px 基准） ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---------- 过渡动画 ---------- */
   --transition-fast: 0.15s ease;
-  --transition-normal: 0.3s ease;
-  --transition-slow: 0.5s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+  /* 弹性曲线：用于悬浮卡片、按钮下沉等「活泼」的微交互 */
+  --transition-spring: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* --- 字体 --- */
+  /* ---------- 字体 ---------- */
   --font-sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+  /* ---------- 布局尺寸 ---------- */
+  --header-height: 64px;              /* 顶部导航栏高度（布局预留用） */
+  --container-max: 1200px;            /* 页面内容最大宽度 */
+
+  /* ---------- 层叠上下文 ---------- */
+  --z-header: 100;
+  --z-dropdown: 200;
+  --z-modal: 500;
+  --z-toast: 1000;
 }
 
 /* ============================================================
- *  暗色主题（通过 .dark 类在 html 上切换）
+ *  2.1 设计令牌 - 暗色主题（html.dark 时生效）
  * ============================================================ */
 html.dark {
-  --color-bg-primary: #0F172A;        /* 暗色主背景：深蓝灰 */
-  --color-bg-secondary: #1E293B;      /* 暗色次背景 */
-  --color-bg-tertiary: #334155;       /* 暗色三级背景 */
-  --color-bg-hover: #2D3A4F;          /* 暗色悬停背景 */
+  --color-bg-primary: #0B1220;        /* 深夜蓝黑 */
+  --color-bg-secondary: #151F32;      /* 卡片背景：稍亮的蓝灰 */
+  --color-bg-tertiary: #1E2A42;
+  --color-bg-hover: #24344F;
+  --color-bg-mask: rgba(0, 0, 0, 0.6);
 
-  --color-text-primary: #F1F5F9;      /* 暗色主文字 */
-  --color-text-secondary: #94A3B8;    /* 暗色次文字 */
-  --color-text-muted: #64748B;        /* 暗色弱化文字 */
-  --color-text-inverse: #0F172A;      /* 暗色反白文字 */
+  --color-text-primary: #E8EEF7;
+  --color-text-secondary: #9AA9C0;
+  --color-text-muted: #64748B;
+  --color-text-inverse: #0B1220;
 
-  --color-accent: #60A5FA;            /* 暗色强调色（稍亮） */
+  --color-accent: #6BA8EE;            /* 暗色下提亮以保证对比度 */
   --color-accent-light: #93C5FD;
-  --color-accent-dark: #3B82F6;
-  --color-accent-bg: #1E3A5F;
-  --color-accent-gradient: linear-gradient(135deg, #60A5FA 0%, #93C5FD 100%);
+  --color-accent-dark: #4A90D9;
+  --color-accent-bg: #1C3A5E;
+  --color-accent-gradient: linear-gradient(135deg, #5C9DE8 0%, #8BC0F8 100%);
 
-  --color-border: #334155;
-  --color-border-light: #1E293B;
+  --color-success: #34D399;
+  --color-success-bg: #064E3B;
+  --color-warning: #FBBF24;
+  --color-warning-bg: #4A3510;
+  --color-danger: #F87171;
+  --color-danger-bg: #4C1D1D;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
-  --shadow-accent: 0 4px 14px rgba(96, 165, 250, 0.3);
+  --color-border: #26334D;
+  --color-border-light: #1B2740;
+
+  /* 暗色下阴影主要来自纯黑，适当加深 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --shadow-accent: 0 4px 14px rgba(107, 168, 238, 0.3);
+  --shadow-accent-lg: 0 8px 24px rgba(107, 168, 238, 0.38);
 }
 
 /* ============================================================
- *  全局基础样式
+ *  3. 全局基础样式
  * ============================================================ */
 html {
   font-family: var(--font-sans);
@@ -105,13 +174,15 @@ html {
 body {
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
+  font-size: var(--text-base);
+  line-height: 1.6;
   transition: background-color var(--transition-normal), color var(--transition-normal);
   margin: 0;
   padding: 0;
   min-height: 100vh;
 }
 
-/* 链接样式 */
+/* 链接：默认强调色，悬停加深并出现下划线 */
 a {
   color: var(--color-accent);
   text-decoration: none;
@@ -122,112 +193,466 @@ a:hover {
   color: var(--color-accent-dark);
 }
 
-/* 选中颜色 */
+/* 选中文字时使用品牌蓝高亮 */
 ::selection {
   background-color: var(--color-accent);
-  color: var(--color-text-inverse);
+  color: #FFFFFF;
 }
 
-/* 滚动条样式 */
+/* 细滚动条：与主题色融合，不抢占视觉 */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-tertiary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-text-muted);
-  border-radius: 3px;
+  border-radius: var(--radius-full);
+  opacity: 0.5;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-secondary);
 }
 
+/* 键盘导航焦点环：兼顾可访问性与美观 */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* 尊重用户的减弱动效偏好（可访问性） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* 页面切换过渡（配合 nuxt.config.ts 的 pageTransition） */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
 /* ============================================================
- *  工具类
+ *  4. 通用工具类（@layer components，允许组件内覆盖）
  * ============================================================ */
 @layer components {
-  /* 卡片容器 */
+
+  /* ---------- 容器 ---------- */
+  /* 页面标准容器：居中 + 最大宽度 + 顶部留出导航栏间距 */
+  .container-page {
+    max-width: var(--container-max);
+    margin: 0 auto;
+    padding: var(--space-16) var(--space-6) var(--space-12);
+  }
+
+  /* ---------- 章节标题 ---------- */
+  .section-title {
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-text-primary);
+    margin: 0 0 var(--space-2);
+  }
+
+  .section-subtitle {
+    font-size: var(--text-lg);
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--space-8);
+  }
+
+  /* ---------- 卡片 ---------- */
   .card {
     background-color: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
-    transition: box-shadow var(--transition-normal), transform var(--transition-normal), border-color var(--transition-normal);
+    transition:
+      box-shadow var(--transition-normal),
+      transform var(--transition-normal),
+      border-color var(--transition-normal);
   }
 
+  /* 悬停时轻微上浮 + 边框染上强调色，营造「可交互」感 */
   .card:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--color-accent-light);
   }
 
-  /* 蓝色按钮 */
+  /* ---------- 按钮体系 ---------- */
+  /* 基础按钮：所有按钮变体共享的尺寸与交互基底 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 10px 24px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      opacity var(--transition-fast),
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast),
+      background-color var(--transition-fast),
+      color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  /* 主按钮：品牌蓝渐变 + 蓝色发光阴影 */
   .btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: var(--space-2);
     padding: 10px 24px;
     background: var(--color-accent-gradient);
-    color: var(--color-text-inverse);
+    color: #FFFFFF;
     border: none;
-    border-radius: var(--radius-sm);
-    font-weight: 500;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.4;
     cursor: pointer;
-    transition: opacity var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+    user-select: none;
     box-shadow: var(--shadow-accent);
+    transition:
+      opacity var(--transition-fast),
+      transform var(--transition-fast),
+      box-shadow var(--transition-fast);
   }
 
   .btn-primary:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(74, 144, 217, 0.35);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-accent-lg);
+    opacity: 0.95;
   }
 
   .btn-primary:active {
     transform: translateY(0);
+    box-shadow: var(--shadow-accent);
   }
 
-  /* 描边按钮 */
+  .btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* 描边按钮：用于次要操作 */
   .btn-outline {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 24px;
+    gap: var(--space-2);
+    padding: 9px 22px;
     background: transparent;
     color: var(--color-accent);
-    border: 2px solid var(--color-accent);
-    border-radius: var(--radius-sm);
-    font-weight: 500;
+    border: 1.5px solid var(--color-accent);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.4;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    user-select: none;
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast),
+      transform var(--transition-fast);
   }
 
   .btn-outline:hover {
     background: var(--color-accent);
-    color: var(--color-text-inverse);
+    color: #FFFFFF;
+    transform: translateY(-1px);
   }
 
-  /* 容器 */
-  .container-page {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 80px 24px 40px;
+  .btn-outline:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
   }
 
-  /* 章节标题 */
-  .section-title {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--color-text-primary);
-    margin-bottom: 0.5rem;
-  }
-
-  .section-subtitle {
-    font-size: 1.1rem;
+  /* 幽灵按钮：无边框，仅悬停显示底色（用于工具栏、图标旁文字按钮） */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 8px 16px;
+    background: transparent;
     color: var(--color-text-secondary);
-    margin-bottom: 2rem;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
+  }
+
+  .btn-ghost:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  /* 危险按钮：删除等破坏性操作 */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 9px 22px;
+    background: transparent;
+    color: var(--color-danger);
+    border: 1.5px solid var(--color-danger);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast);
+  }
+
+  .btn-danger:hover {
+    background: var(--color-danger);
+    color: #FFFFFF;
+  }
+
+  /* 小尺寸按钮修饰类（配合 .btn-primary/.btn-outline 等使用） */
+  .btn-sm {
+    padding: 6px 14px;
+    font-size: var(--text-xs);
+    border-radius: var(--radius-sm);
+  }
+
+  /* 图标按钮：正方形，常用于工具栏（复制、删除、关闭等） */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      color var(--transition-fast),
+      transform var(--transition-fast);
+  }
+
+  .icon-btn:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  .icon-btn:active {
+    transform: scale(0.92);
+  }
+
+  /* ---------- 表单控件 ---------- */
+  /* 输入框/下拉框/多行文本统一样式 */
+  .input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    outline: none;
+    transition:
+      border-color var(--transition-fast),
+      box-shadow var(--transition-fast);
+  }
+
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  /* 聚焦时边框变强调色并带柔和光晕 */
+  .input:focus {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.15);
+  }
+
+  .input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* 表单字段标签 */
+  .field-label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-2);
+  }
+
+  /* 字段下方的辅助说明文字 */
+  .field-hint {
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+  }
+
+  /* ---------- 徽章/标签 ---------- */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 3px 10px;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    border-radius: var(--radius-full);
+    background: var(--color-accent-bg);
+    color: var(--color-accent);
+    white-space: nowrap;
+  }
+
+  .badge-success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  .badge-warning {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+  }
+
+  /* ---------- 空状态 ---------- */
+  /* 列表无数据时的占位插画区（📭 图标 + 提示文字） */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-16) var(--space-6);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
+  }
+
+  .empty-state-icon {
+    font-size: 3rem;
+    opacity: 0.6;
+  }
+
+  /* ---------- 骨架屏加载动画 ---------- */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+  }
+
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 50%,
+      transparent 100%
+    );
+    animation: skeleton-shimmer 1.4s infinite;
+  }
+
+  /* ---------- 通用加载旋转圈 ---------- */
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2.5px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+}
+
+/* ============================================================
+ *  5. 全局动画关键帧
+ * ============================================================ */
+
+/* 骨架屏微光扫过 */
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* 旋转（加载指示） */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 入场：上浮淡入（用于卡片列表依次出现） */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 入场：仅淡入 */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 呼吸脉冲（聊天「正在输入」指示点等） */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
   }
 }

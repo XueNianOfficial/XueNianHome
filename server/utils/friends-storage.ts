@@ -9,6 +9,7 @@ import { join } from 'node:path'
 
 const FRIENDS_FILE = join(process.cwd(), 'server/data/friends.json')
 
+/** 友链条目（字段与 app/types/index.ts 的 FriendLink 保持一致） */
 export interface FriendEntry {
   name: string
   avatar: string

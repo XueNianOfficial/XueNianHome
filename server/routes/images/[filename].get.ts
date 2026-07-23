@@ -1,25 +1,15 @@
 /**
- * GET /images/:filename
- * 动态提供图片文件（绕过 Nitro 构建时静态路由映射限制）
- * 生产环境：从 .output/public/images/ 读取
- * 开发环境：从 public/images/ 读取
- * 均失败则返回 404
+ * ============================================================
+ *  图片路由 - GET /images/:filename
+ *  动态提供图片文件（绕过 Nitro 构建时静态路由映射限制）
+ *  生产环境从 .output/public/images/ 读取，失败回退 public/images/
+ *  均失败则不响应，交给后续处理器（Nuxt 404 页）
+ * ============================================================
  */
-import { getPublicImagesDir } from '../../utils/image-dir'
+import { getPublicImagesDir, IMAGE_MIME_MAP } from '../../utils/image-dir'
 import { readFile } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 import { existsSync } from 'node:fs'
-
-/** 扩展名 → MIME type 映射 */
-const MIME_MAP: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
-}
 
 export default defineEventHandler(async (event) => {
   // 仅处理 GET 请求
@@ -57,7 +47,7 @@ export default defineEventHandler(async (event) => {
 
   // 设置正确的 Content-Type
   const ext = extname(filename).toLowerCase()
-  const contentType = MIME_MAP[ext] || 'application/octet-stream'
+  const contentType = IMAGE_MIME_MAP[ext] || 'application/octet-stream'
 
   setHeader(event, 'Content-Type', contentType)
   setHeader(event, 'Cache-Control', 'public, max-age=86400')

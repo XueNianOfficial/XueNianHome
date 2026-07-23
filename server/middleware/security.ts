@@ -18,7 +18,7 @@ export default defineEventHandler((event) => {
   if (!ALLOWED_METHODS.has(event.method)) {
     setResponseStatus(event, 405)
     setHeader(event, 'Allow', [...ALLOWED_METHODS].join(', '))
-    return { error: 'Method Not Allowed' }
+    return { error: '请求方法不被允许' }
   }
 
   // ========== 2. 移除框架标识 ==========

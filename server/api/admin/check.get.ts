@@ -1,6 +1,8 @@
 /**
- * GET /api/admin/check
- * 检查登录状态，返回当前用户信息
+ * ============================================================
+ *  登录状态检查 API - GET /api/admin/check
+ *  返回当前管理员用户信息（未登录返回 authenticated: false）
+ * ============================================================
  */
 import { getCurrentUser } from '../../utils/admin-auth'
 

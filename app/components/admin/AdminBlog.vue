@@ -2,140 +2,169 @@
 ============================================================
   管理后台 - 博客管理组件
   列表、新建、编辑、删除博客文章
+  - 列表：标题/日期/草稿徽章/操作，骨架屏加载，空态提示
+  - 编辑弹窗：设计系统表单控件 + Markdown 等宽编辑框 + 草稿开关
+  - 删除经 AdminConfirm 二次确认，操作结果统一 Toast 反馈
 ============================================================
 -->
 <template>
   <div class="admin-blog">
     <!-- 操作栏 -->
     <div class="section-actions">
-      <h3>文章列表（{{ posts.length }} 篇）</h3>
-      <button class="btn-primary btn-sm" @click="openEditor(null)">+ 新建文章</button>
+      <h3 class="section-title-sm">
+        文章列表 <span class="badge">{{ posts.length }} 篇</span>
+      </h3>
+      <button type="button" class="btn-primary btn-sm" @click="openEditor(null)">
+        ＋ 新建文章
+      </button>
     </div>
 
-    <!-- 加载中 -->
-    <div v-if="loading" class="loading-text">加载中...</div>
+    <!-- 加载中：骨架屏 -->
+    <div v-if="loading" class="blog-list">
+      <div v-for="i in 3" :key="i" class="skeleton blog-skeleton"></div>
+    </div>
+
+    <!-- 空列表 -->
+    <div v-else-if="posts.length === 0" class="empty-state card">
+      <span class="empty-state-icon">📭</span>
+      <p>暂无文章，点击「新建文章」开始写作吧</p>
+    </div>
 
     <!-- 文章列表 -->
     <div v-else class="blog-list">
       <div v-for="post in posts" :key="post.slug" class="blog-item card">
         <div class="blog-item-info">
           <div class="blog-item-header">
-            <h4>{{ post.title }}</h4>
-            <span v-if="post.draft" class="draft-badge">草稿</span>
+            <h4 class="blog-item-title">{{ post.title }}</h4>
+            <span v-if="post.draft" class="badge badge-warning">草稿</span>
           </div>
           <p class="blog-item-meta">
             <span>📅 {{ post.date || '无日期' }}</span>
-            <span>🔗 {{ post.slug }}</span>
-            <span v-if="post.tags.length">🏷️ {{ post.tags.join(', ') }}</span>
+            <span class="blog-item-slug">🔗 {{ post.slug }}</span>
+          </p>
+          <p v-if="post.tags.length" class="blog-item-tags">
+            <span v-for="tag in post.tags" :key="tag" class="badge">{{ tag }}</span>
           </p>
           <p class="blog-item-desc">{{ post.description || '无摘要' }}</p>
         </div>
         <div class="blog-item-actions">
-          <button class="btn-outline btn-sm" @click="openEditor(post)">编辑</button>
-          <button class="btn-danger btn-sm" @click="handleDelete(post)">删除</button>
+          <button type="button" class="btn-outline btn-sm" @click="openEditor(post)">编辑</button>
+          <button type="button" class="btn-danger btn-sm" @click="handleDelete(post)">删除</button>
         </div>
-      </div>
-
-      <div v-if="posts.length === 0" class="empty-state">
-        <p>暂无文章，点击「新建文章」开始</p>
       </div>
     </div>
 
     <!-- 编辑弹窗 -->
     <div v-if="showEditor" class="modal-overlay" @click.self="closeEditor">
       <div class="modal card">
-        <h3>{{ editingPost ? '编辑文章' : '新建文章' }}</h3>
+        <div class="modal-header">
+          <h3 class="modal-title">{{ editingPost ? '编辑文章' : '新建文章' }}</h3>
+          <button type="button" class="icon-btn" title="关闭" @click="closeEditor">✕</button>
+        </div>
 
         <div class="form-group">
-          <label>标题 *</label>
-          <input v-model="form.title" class="form-input" placeholder="文章标题" />
+          <label class="field-label" for="blog-title">标题 *</label>
+          <input id="blog-title" v-model="form.title" class="input" placeholder="文章标题" />
         </div>
 
         <div class="form-row">
           <div class="form-group form-group-flex">
-            <label>Slug *</label>
-            <input v-model="form.slug" class="form-input" placeholder="url-slug" />
+            <label class="field-label" for="blog-slug">Slug *</label>
+            <input id="blog-slug" v-model="form.slug" class="input" placeholder="url-slug" />
+            <p class="field-hint">文章的 URL 标识，如 hello-world</p>
           </div>
           <div class="form-group form-group-flex">
-            <label>日期</label>
-            <input v-model="form.date" class="form-input" type="date" />
+            <label class="field-label" for="blog-date">日期</label>
+            <input id="blog-date" v-model="form.date" class="input" type="date" />
           </div>
         </div>
 
         <div class="form-group">
-          <label>摘要</label>
-          <input v-model="form.description" class="form-input" placeholder="简短描述" />
+          <label class="field-label" for="blog-desc">摘要</label>
+          <input id="blog-desc" v-model="form.description" class="input" placeholder="一句话描述文章内容" />
         </div>
 
         <div class="form-row">
           <div class="form-group form-group-flex">
-            <label>标签（逗号分隔）</label>
-            <input v-model="tagsInput" class="form-input" placeholder="标签1, 标签2" />
+            <label class="field-label" for="blog-tags">标签</label>
+            <input id="blog-tags" v-model="tagsInput" class="input" placeholder="标签1, 标签2" />
+            <p class="field-hint">多个标签用逗号分隔</p>
           </div>
           <div class="form-group form-group-flex">
-            <label>封面图</label>
-            <input v-model="form.cover" class="form-input" placeholder="/images/xxx.png" />
+            <label class="field-label" for="blog-cover">封面图</label>
+            <input id="blog-cover" v-model="form.cover" class="input" placeholder="/images/xxx.png" />
+            <p class="field-hint">public/images/ 下的图片路径</p>
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="checkbox-label">
+        <!-- 草稿开关 -->
+        <div class="form-group draft-row">
+          <div class="draft-row-text">
+            <span class="field-label">设为草稿</span>
+            <p class="field-hint">草稿不会在网站博客列表中显示</p>
+          </div>
+          <label class="switch">
             <input v-model="form.draft" type="checkbox" />
-            草稿（不在网站显示）
+            <span class="switch-slider"></span>
           </label>
         </div>
 
         <div class="form-group">
-          <label>正文（Markdown）</label>
+          <label class="field-label" for="blog-body">正文（Markdown）</label>
           <textarea
+            id="blog-body"
             v-model="form.body"
-            class="form-textarea"
+            class="input editor-textarea"
             rows="12"
             placeholder="使用 Markdown 格式编写文章内容..."
           ></textarea>
         </div>
 
-        <p v-if="saveError" class="form-error">{{ saveError }}</p>
-
         <div class="modal-actions">
-          <button class="btn-outline" @click="closeEditor">取消</button>
+          <button type="button" class="btn-ghost" :disabled="saving" @click="closeEditor">取消</button>
           <button
+            type="button"
             class="btn-primary"
             :disabled="!form.title || !form.slug || saving"
             @click="handleSave"
-          >{{ saving ? '保存中...' : '保存' }}</button>
+          >{{ saving ? '保存中…' : '保存' }}</button>
         </div>
       </div>
     </div>
 
-    <!-- 删除确认 -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
-      <div class="modal card modal-sm">
-        <h3>确认删除</h3>
-        <p>确定要删除「{{ deleteTarget?.title }}」吗？此操作不可撤销。</p>
-        <div class="modal-actions">
-          <button class="btn-outline" @click="showDeleteConfirm = false">取消</button>
-          <button class="btn-danger" :disabled="deleting" @click="confirmDelete">
-            {{ deleting ? '删除中...' : '确认删除' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 删除确认（二次确认弹窗） -->
+    <AdminConfirm
+      :show="showDeleteConfirm"
+      title="删除文章"
+      :description="`确定要删除「${deleteTarget?.title}」吗？此操作不可撤销。`"
+      confirm-text="确认删除"
+      loading-text="删除中…"
+      :loading="deleting"
+      @confirm="confirmDelete"
+      @cancel="showDeleteConfirm = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 /**
  * AdminBlog - 博客管理组件
- * 列表、新建、编辑、删除博客文章
+ *
+ * 接口契约：
+ *   GET  /api/admin/blog/list   → { success, data: AdminBlogPost[] }
+ *   POST /api/admin/blog/save   { slug, title, date, description, cover, tags, draft, body, oldSlug? }
+ *   POST /api/admin/blog/delete { slug }
  */
 import type { BlogPost } from '~/types'
+import AdminConfirm from './AdminConfirm.vue'
 
 /** 管理后台扩展的博客类型（含文件名和正文） */
 interface AdminBlogPost extends BlogPost {
   filename: string
   body: string
 }
+
+const { success, error } = useToast()
 
 const posts = ref<AdminBlogPost[]>([])
 const loading = ref(true)
@@ -144,7 +173,6 @@ const loading = ref(true)
 const showEditor = ref(false)
 const editingPost = ref<AdminBlogPost | null>(null)
 const saving = ref(false)
-const saveError = ref('')
 const tagsInput = ref('')
 
 const form = reactive({
@@ -170,12 +198,12 @@ async function loadPosts() {
     const res = await $fetch<{ success: boolean; data: AdminBlogPost[] }>('/api/admin/blog/list')
     posts.value = res.data || []
   } catch (e: any) {
-    console.error('加载文章失败：', e)
+    error(e?.data?.message || '加载文章列表失败')
   }
   loading.value = false
 }
 
-/** 打开编辑器 */
+/** 打开编辑器（传 null 为新建） */
 function openEditor(post: AdminBlogPost | null) {
   editingPost.value = post
   if (post) {
@@ -199,22 +227,21 @@ function openEditor(post: AdminBlogPost | null) {
     form.body = ''
     tagsInput.value = ''
   }
-  saveError.value = ''
   showEditor.value = true
 }
 
 /** 关闭编辑器 */
 function closeEditor() {
+  if (saving.value) return
   showEditor.value = false
   editingPost.value = null
 }
 
-/** 保存文章 */
+/** 保存文章（新建或更新） */
 async function handleSave() {
   saving.value = true
-  saveError.value = ''
 
-  // 从输入解析标签
+  // 从输入解析标签（兼容中英文逗号）
   form.tags = tagsInput.value
     .split(/[,，]/)
     .map(t => t.trim())
@@ -228,15 +255,17 @@ async function handleSave() {
         oldSlug: editingPost.value?.slug
       }
     })
-    closeEditor()
+    showEditor.value = false
+    editingPost.value = null
+    success('保存成功')
     await loadPosts()
   } catch (e: any) {
-    saveError.value = e?.data?.message || '保存失败'
+    error(e?.data?.message || '保存失败')
   }
   saving.value = false
 }
 
-/** 确认删除 */
+/** 打开删除确认弹窗 */
 function handleDelete(post: AdminBlogPost) {
   deleteTarget.value = post
   showDeleteConfirm.value = true
@@ -252,9 +281,10 @@ async function confirmDelete() {
       body: { slug: deleteTarget.value.slug }
     })
     showDeleteConfirm.value = false
+    success('删除成功')
     await loadPosts()
   } catch (e: any) {
-    console.error('删除失败：', e)
+    error(e?.data?.message || '删除失败')
   }
   deleting.value = false
 }
@@ -265,57 +295,79 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ---------- 操作栏 ---------- */
 .section-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
-.section-actions h3 {
+.section-title-sm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
 }
 
+/* ---------- 文章列表 ---------- */
 .blog-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
+}
+
+.blog-skeleton {
+  height: 96px;
 }
 
 .blog-item {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
-  padding: 16px;
+  gap: var(--space-4);
+  padding: var(--space-4);
 }
 
-.blog-item-info { flex: 1; min-width: 0; }
-.blog-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.blog-item-header h4 { margin: 0; font-size: 1rem; }
-.draft-badge {
-  font-size: 0.7rem;
-  background: #FEF3C7;
-  color: #92400E;
-  padding: 1px 8px;
-  border-radius: 10px;
+.blog-item-info {
+  flex: 1;
+  min-width: 0;
 }
-html.dark .draft-badge { background: #422006; color: #FBBF24; }
+
+.blog-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.blog-item-title {
+  margin: 0;
+  font-size: var(--text-base);
+}
 
 .blog-item-meta {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 4px 0;
+  gap: var(--space-3);
+  margin: var(--space-1) 0;
+}
+
+.blog-item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-1) 0;
 }
 
 .blog-item-desc {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
-  margin: 4px 0 0;
+  margin: var(--space-1) 0 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -323,97 +375,156 @@ html.dark .draft-badge { background: #422006; color: #FBBF24; }
 
 .blog-item-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
-.btn-sm { padding: 4px 14px; font-size: 0.8rem; }
-.btn-danger {
-  padding: 4px 14px;
-  font-size: 0.8rem;
-  background: #DC2626;
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-.btn-danger:hover { opacity: 0.85; }
-.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.empty-state {
-  text-align: center;
-  padding: 40px;
-  color: var(--color-text-muted);
-}
-
-/* 弹窗 */
+/* ---------- 弹窗 ---------- */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: var(--color-bg-mask);
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 40px;
-  z-index: 100;
+  padding: var(--space-8) var(--space-4);
+  z-index: var(--z-modal);
   overflow-y: auto;
+  animation: modal-fade-in var(--transition-fast);
 }
 
 .modal {
   width: 720px;
   max-width: 95vw;
-  padding: 24px;
-  margin-bottom: 40px;
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
 }
 
-.modal-sm { width: 400px; }
-
-.modal h3 { margin: 0 0 20px; font-size: 1.15rem; }
-
-/* 表单 */
-.form-group { margin-bottom: 14px; }
-.form-group label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  margin-bottom: 4px;
-}
-.form-row { display: flex; gap: 12px; }
-.form-group-flex { flex: 1; }
-
-.form-input, .form-textarea {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-size: 0.9rem;
-  font-family: var(--font-sans);
-  outline: none;
-  transition: border-color var(--transition-fast);
-}
-.form-input:focus, .form-textarea:focus {
-  border-color: var(--color-accent);
-}
-.form-textarea { resize: vertical; font-family: var(--font-mono); line-height: 1.6; }
-
-.checkbox-label {
-  display: flex !important;
+.modal-header {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 400 !important;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+/* ---------- 表单 ---------- */
+.form-group {
+  margin-bottom: var(--space-4);
+}
+
+.form-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.form-group-flex {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Markdown 编辑框：等宽字体 */
+.editor-textarea {
+  resize: vertical;
+  font-family: var(--font-mono);
+  line-height: 1.6;
+}
+
+/* ---------- 草稿开关行 ---------- */
+.draft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+}
+
+.draft-row .field-label {
+  margin-bottom: 0;
+}
+
+.draft-row .field-hint {
+  margin-top: var(--space-1);
+}
+
+/* 开关控件 */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
   cursor: pointer;
 }
-.checkbox-label input { width: auto; }
 
-.form-error { color: #DC2626; font-size: 0.85rem; margin: 0 0 8px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
 
+.switch-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  transition: background-color var(--transition-fast);
+}
+
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+
+.switch input:checked + .switch-slider {
+  background: var(--color-accent);
+}
+
+.switch input:checked + .switch-slider::before {
+  transform: translateX(18px);
+}
+
+.switch input:focus-visible + .switch-slider {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 动画 ---------- */
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- 响应式 ---------- */
 @media (max-width: 640px) {
-  .form-row { flex-direction: column; }
-  .blog-item { flex-direction: column; }
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .blog-item {
+    flex-direction: column;
+  }
 }
 </style>

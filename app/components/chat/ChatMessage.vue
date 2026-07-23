@@ -1,15 +1,18 @@
 <!--
 ============================================================
-  雪年个人网站 - 聊天消息组件
-  区分用户消息（右侧蓝色气泡）和 AI 消息（左侧白色气泡）
-  支持消息编辑功能
+  雪年个人网站 - 聊天消息气泡组件
+  - 用户消息：右侧 accent 渐变气泡（气泡角在右上）
+  - AI 消息：左侧卡片底色气泡 + 雪年头像（气泡角在左上）
+  - 悬停显示操作：复制 / 编辑（移动端常显）
+  - 支持消息编辑（仅保存 / 保存并重发）、图片展示、时间戳
+  - AI 消息支持深度思考过程折叠展示与「已联网搜索」标记
 ============================================================
 -->
 <template>
   <div class="chat-message" :class="`chat-message--${message.role}`">
     <!-- AI 消息头像（左侧） -->
     <div v-if="message.role === 'assistant'" class="message-avatar">
-      <img :src="aiAvatar" alt="AI 头像" class="avatar-img" width="36" height="36" @error="onAiAvatarError">
+      <img :src="aiAvatar" alt="雪年头像" class="avatar-img" width="36" height="36" @error="onAiAvatarError">
     </div>
 
     <!-- 消息主体 -->
@@ -25,55 +28,67 @@
           @keydown.escape="handleCancelEdit"
         ></textarea>
         <div class="message-edit-actions">
-          <span class="edit-hint">Enter 保存 · Esc 取消</span>
+          <span class="edit-hint">Enter 保存并重发 · Esc 取消</span>
           <div class="edit-btns">
-            <button class="btn-edit-cancel" @click="handleCancelEdit">取消</button>
-            <button class="btn-edit-save-only" :disabled="!editContent.trim()" @click="handleSaveEditOnly">仅保存</button>
-            <button class="btn-edit-save" :disabled="!editContent.trim()" @click="handleSaveEdit">保存并重发</button>
+            <button class="btn-ghost btn-sm" @click="handleCancelEdit">取消</button>
+            <button class="btn-outline btn-sm" :disabled="!editContent.trim()" @click="handleSaveEditOnly">仅保存</button>
+            <button class="btn-primary btn-sm" :disabled="!editContent.trim()" @click="handleSaveEdit">保存并重发</button>
           </div>
         </div>
       </div>
 
       <!-- 普通消息气泡 -->
       <template v-else>
+        <!-- AI 深度思考过程（可折叠，插值纯文本渲染防 XSS） -->
+        <details
+          v-if="message.role === 'assistant' && message.reasoning"
+          class="message-reasoning"
+        >
+          <summary class="message-reasoning-summary">💭 思考过程</summary>
+          <div class="message-reasoning-content">{{ message.reasoning }}</div>
+        </details>
+
         <div
           class="message-bubble"
-          :class="{ 'sticker-bubble': isStickerMessage }"
           @contextmenu.prevent="startEditLocal"
           @touchstart="onTouchStart"
           @touchend="onTouchEnd"
           @touchmove="onTouchMove"
         >
           <!-- 图片展示 -->
-          <div v-if="message.parts && message.parts.length > 0" class="message-images" :class="{ 'sticker-images': isStickerMessage }">
+          <div v-if="message.parts && message.parts.length > 0" class="message-images">
             <template v-for="(part, idx) in message.parts" :key="idx">
               <img
                 v-if="part.type === 'image_url' && part.image_url"
                 :src="part.image_url.url"
                 class="message-image"
-                :class="{ 'sticker-img': isStickerMessage }"
-                alt="用户上传的图片"
+                alt="聊天中的图片"
                 loading="lazy"
                 @click="viewImage(part.image_url!.url)"
               />
             </template>
           </div>
-          <div v-if="!isStickerMessage || !message.parts?.length" class="message-content" v-html="renderedContent"></div>
+          <div v-if="message.content" class="message-content" v-html="renderedContent"></div>
           <div class="message-meta">
             <span v-if="message.edited" class="message-edited-tag">已编辑</span>
+            <span v-if="message.searched" class="message-searched-tag">🌐 已联网搜索</span>
             <span class="message-time">{{ formatTime(message.timestamp) }}</span>
           </div>
         </div>
 
-        <!-- 消息操作按钮（用户和 AI 消息均可编辑） -->
+        <!-- 消息操作按钮（悬停显示；移动端常显） -->
         <div class="message-actions">
+          <button
+            v-if="message.content"
+            class="msg-action-btn"
+            title="复制内容"
+            @click="copyContent"
+          >📋</button>
           <button
             class="msg-action-btn"
             title="编辑消息"
             @click="startEditLocal"
-          >
-            ✏️
-          </button>
+          >✏️</button>
         </div>
       </template>
     </div>
@@ -88,31 +103,23 @@
 <script setup lang="ts">
 /**
  * ChatMessage - 单条聊天消息组件
- * 根据 role 渲染不同样式的气泡
- * 支持编辑用户消息、流式消息显示
+ * 根据 role 渲染不同样式的气泡，支持复制、编辑、长按/右键进入编辑
  */
 import type { ChatMessage } from '~/types'
 import { useChat } from '~/composables/useChat'
+import { useToast } from '~/composables/useToast'
 
 const props = defineProps<{
   message: ChatMessage
 }>()
 
-const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly, currentPresetAvatar, enableExperimental } = useChat()
+const { editingMessageId, startEdit, cancelEdit, saveEdit, saveEditOnly, currentPresetAvatar } = useChat()
+const toast = useToast()
 
-/** 是否为实验模式下的纯表情包消息（无文本内容，仅有图片 parts） */
-const isStickerMessage = computed(() => {
-  return enableExperimental.value &&
-    !props.message.content &&
-    props.message.parts &&
-    props.message.parts.length > 0 &&
-    props.message.parts.every(p => p.type === 'image_url')
-})
-
-/** AI 消息使用的头像（预设头像 > 默认头像） */
+/** AI 消息使用的头像（预设头像 > 默认雪年头像） */
 const aiAvatar = computed(() => currentPresetAvatar.value || '/images/头像.png')
 
-/** 头像加载失败时回退到默认头像 */
+/** 头像加载失败时回退到默认头像（防止预设头像 404 显示破图） */
 function onAiAvatarError(e: Event) {
   const img = e.target as HTMLImageElement
   if (img && img.src !== '/images/头像.png') {
@@ -123,13 +130,13 @@ function onAiAvatarError(e: Event) {
 /** 是否正在编辑此条消息 */
 const isEditing = computed(() => editingMessageId.value === props.message.id)
 
-/** 编辑内容 */
+/** 编辑框内容 */
 const editContent = ref(props.message.content)
 
-/** 编辑输入框 ref */
+/** 编辑输入框 ref（进入编辑时自动聚焦） */
 const editInputRef = ref<HTMLTextAreaElement | null>(null)
 
-/** 渲染消息内容为 HTML（转义 + 换行 + 简单 Markdown） */
+/** 渲染消息内容为 HTML（转义 + 换行 + 简单 Markdown，保持现状不引入渲染器） */
 const renderedContent = computed(() => {
   return props.message.content
     .replace(/&/g, '&amp;')
@@ -140,7 +147,17 @@ const renderedContent = computed(() => {
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
 })
 
-/** 开始编辑（本地触发） */
+/** 复制消息文本到剪贴板 */
+async function copyContent() {
+  try {
+    await navigator.clipboard.writeText(props.message.content)
+    toast.success('已复制')
+  } catch {
+    toast.error('复制失败，请手动选择文本复制')
+  }
+}
+
+/** 进入编辑模式（右键 / 长按 / 按钮触发） */
 function startEditLocal() {
   editContent.value = props.message.content
   startEdit(props.message.id)
@@ -149,13 +166,13 @@ function startEditLocal() {
   })
 }
 
-/** 保存编辑 */
+/** 保存编辑并重发（截断后续消息重新生成） */
 function handleSaveEdit() {
   if (!editContent.value.trim()) return
   saveEdit(props.message.id, editContent.value)
 }
 
-/** 仅保存编辑（不重发） */
+/** 仅保存编辑内容（不重发） */
 function handleSaveEditOnly() {
   if (!editContent.value.trim()) return
   saveEditOnly(props.message.id, editContent.value)
@@ -166,13 +183,13 @@ function handleCancelEdit() {
   cancelEdit()
 }
 
-// ==================== 右键 / 长按编辑 ====================
+// ==================== 移动端长按进入编辑 ====================
 
 /** 长按计时器 */
 let longPressTimer: ReturnType<typeof setTimeout> | null = null
 /** 长按触发阈值（ms） */
 const LONG_PRESS_MS = 500
-/** 是否已触发长按（防止 touchend 后再次触发 click） */
+/** 是否已触发长按 */
 let longPressTriggered = false
 
 function onTouchStart() {
@@ -193,6 +210,7 @@ function onTouchEnd() {
   }
 }
 
+/** 滑动时取消长按（避免滚动误触发编辑） */
 function onTouchMove() {
   if (longPressTimer) {
     clearTimeout(longPressTimer)
@@ -200,9 +218,7 @@ function onTouchMove() {
   }
 }
 
-/**
- * 格式化时间戳为 HH:MM 格式
- */
+/** 格式化时间戳为 HH:MM */
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp)
   return date.toLocaleTimeString('zh-CN', {
@@ -218,18 +234,13 @@ function viewImage(src: string) {
 </script>
 
 <style scoped>
-/* ---------- 消息容器 ---------- */
+/* ---------- 消息容器（入场动画使用全局 fade-in-up 关键帧） ---------- */
 .chat-message {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--space-2);
   max-width: 85%;
-  animation: messageIn 0.3s ease;
-}
-
-@keyframes messageIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  animation: fade-in-up var(--transition-normal);
 }
 
 /* 用户消息右对齐 */
@@ -247,22 +258,28 @@ function viewImage(src: string) {
 .message-body {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .chat-message--user .message-body {
   align-items: flex-end;
 }
 
+.chat-message--assistant .message-body {
+  align-items: flex-start;
+}
+
 /* ---------- 头像 ---------- */
 .message-avatar {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
   background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -277,30 +294,33 @@ function viewImage(src: string) {
   object-fit: cover;
 }
 
-/* ---------- 消息气泡 ---------- */
+/* ---------- 消息气泡（不对称圆角 = 气泡角） ---------- */
 .message-bubble {
   padding: 10px 14px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   position: relative;
+  box-shadow: var(--shadow-sm);
 }
 
-/* AI 气泡 */
+/* AI 气泡：卡片底色 + 细边框，气泡角在左上 */
 .chat-message--assistant .message-bubble {
-  background: var(--color-bg-tertiary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   color: var(--color-text-primary);
-  border-top-left-radius: 4px;
+  border-top-left-radius: var(--radius-sm);
 }
 
-/* 用户气泡（蓝色强调） */
+/* 用户气泡：accent 渐变 + 反白文字，气泡角在右上 */
 .chat-message--user .message-bubble {
-  background: var(--color-accent);
+  background: var(--color-accent-gradient);
   color: #FFFFFF;
-  border-top-right-radius: 4px;
+  border-top-right-radius: var(--radius-sm);
+  box-shadow: var(--shadow-accent);
 }
 
 /* ---------- 消息内容 ---------- */
 .message-content {
-  font-size: 0.95rem;
+  font-size: var(--text-sm);
   line-height: 1.6;
   word-break: break-word;
 }
@@ -317,91 +337,92 @@ function viewImage(src: string) {
 .message-images {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .message-image {
   max-width: 200px;
   max-height: 200px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
   cursor: pointer;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid var(--color-border);
   transition: transform var(--transition-fast);
 }
 .message-image:hover {
   transform: scale(1.05);
 }
 
-/* ---------- 实验功能：表情包气泡 ---------- */
-.sticker-bubble {
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 4px !important;
-}
-
-.sticker-images {
-  justify-content: center;
-}
-
-.sticker-img {
-  max-width: 160px;
-  max-height: 160px;
-  border-radius: 12px;
-  object-fit: contain;
-  border: none;
-  animation: sticker-pop-in 0.3s ease-out;
-}
-
-@keyframes sticker-pop-in {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  70% {
-    transform: scale(1.1);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* ---------- 消息元信息 ---------- */
+/* ---------- 消息元信息（时间戳 / 已编辑标记） ---------- */
 .message-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   justify-content: flex-end;
-  margin-top: 4px;
+  margin-top: var(--space-1);
 }
 
 .message-time {
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   opacity: 0.7;
 }
 
 .message-edited-tag {
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   opacity: 0.6;
   font-style: italic;
 }
 
-/* ---------- 消息操作按钮 ---------- */
+/* 联网搜索小标记（与「已编辑」同风格） */
+.message-searched-tag {
+  font-size: var(--text-xs);
+  opacity: 0.6;
+}
+
+/* ---------- 深度思考过程折叠区（AI 消息气泡上方） ---------- */
+.message-reasoning {
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.message-reasoning-summary {
+  cursor: pointer;
+  user-select: none;
+  font-style: italic;
+}
+
+.message-reasoning-content {
+  margin-top: var(--space-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.chat-message--assistant .message-meta {
+  color: var(--color-text-muted);
+}
+
+/* ---------- 消息操作按钮（复制 / 编辑） ---------- */
 .message-actions {
   display: flex;
-  gap: 4px;
-  margin-top: 2px;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
   opacity: 0;
   transition: opacity var(--transition-fast);
 }
 
-.chat-message:hover .message-actions {
+.chat-message:hover .message-actions,
+.chat-message:focus-within .message-actions {
   opacity: 1;
 }
 
-/* 移动端（触摸设备）始终显示编辑按钮 */
+/* 移动端（触摸设备）始终显示操作按钮 */
 @media (pointer: coarse) {
   .message-actions {
     opacity: 1;
@@ -409,17 +430,24 @@ function viewImage(src: string) {
 }
 
 .msg-action-btn {
-  background: none;
+  background: transparent;
   border: none;
   cursor: pointer;
   font-size: 0.8rem;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: background var(--transition-fast);
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .msg-action-btn:hover {
-  background: var(--color-bg-tertiary);
+  background: var(--color-bg-hover);
+}
+
+.msg-action-btn:active {
+  transform: scale(0.92);
 }
 
 /* ---------- 编辑模式 ---------- */
@@ -431,81 +459,41 @@ function viewImage(src: string) {
 .message-edit-input {
   width: 100%;
   padding: 8px 12px;
-  border: 2px solid var(--color-accent);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
+  border: 1.5px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
   color: var(--color-text-primary);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-family: var(--font-sans);
   line-height: 1.5;
   resize: vertical;
   outline: none;
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.15);
 }
 
 .message-edit-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 6px;
-  gap: 8px;
+  margin-top: var(--space-2);
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .edit-hint {
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
 .edit-btns {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
-.btn-edit-save-only,
-.btn-edit-save,
-.btn-edit-cancel {
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 0.8rem;
-  cursor: pointer;
-  border: none;
-  transition: all var(--transition-fast);
-}
-
-.btn-edit-save {
-  background: var(--color-accent);
-  color: #fff;
-}
-
-.btn-edit-save:hover {
-  background: var(--color-accent-dark);
-}
-
-.btn-edit-save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-edit-save-only {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-}
-
-.btn-edit-save-only:hover {
-  background: var(--color-accent-bg);
-}
-
-.btn-edit-save-only:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-edit-cancel {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
-}
-
-.btn-edit-cancel:hover {
-  background: var(--color-bg-hover);
+/* ---------- 响应式 ---------- */
+@media (max-width: 640px) {
+  .chat-message {
+    max-width: 92%;
+  }
 }
 </style>

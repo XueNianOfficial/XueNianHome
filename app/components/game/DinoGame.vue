@@ -2,44 +2,64 @@
 ============================================================
   雪年个人网站 - 断网小恐龙游戏（Canvas 实现）
   经典 Chrome Dino 玩法，狼角色皮肤替换
-  空格/↑ 跳跃，躲避障碍物（骨头/树桩）
-  分数递增，速度渐快
+  空格/↑/点击画面 跳跃，躲避障碍物（骨头/树桩）
+  分数递增，速度渐快，ESC 退出
+  画面配色读取全局设计令牌（CSS 变量），亮/暗主题自适应
 ============================================================
 -->
 <template>
-  <div class="dino-game">
-    <!-- 游戏信息栏 -->
+  <div class="dino-game card">
+    <!-- 游戏信息栏（HUD）：得分 / 速度 / 退出 -->
     <div class="game-hud">
-      <span class="game-score">🏆 得分：{{ score }}</span>
-      <span class="game-speed">⚡ 速度：{{ Math.floor(speed) }}</span>
-      <button class="game-exit-btn" @click="handleExit" title="退出游戏 (ESC)">
+      <div class="hud-stats">
+        <span class="hud-chip hud-chip-score">
+          🏆 得分 <b class="hud-num">{{ score }}</b>
+        </span>
+        <span class="hud-chip">
+          ⚡ 速度 <b class="hud-num">{{ Math.floor(speed) }}</b>
+        </span>
+      </div>
+      <button type="button" class="btn-outline btn-sm game-exit-btn" @click="handleExit" title="退出游戏 (ESC)">
         ✕ 退出
       </button>
     </div>
 
-    <!-- Canvas 画布 -->
+    <!-- Canvas 画布：点击 / 触摸也可跳跃（移动端支持） -->
     <canvas
       ref="canvasRef"
       class="game-canvas"
       :width="canvasWidth"
       :height="canvasHeight"
+      role="img"
+      aria-label="小恐龙跑酷游戏画面"
+      @click="handleTapJump"
+      @touchstart.prevent="handleTapJump"
     ></canvas>
 
-    <!-- 游戏提示（移动端） -->
-    <p class="game-tip">按 <kbd>空格</kbd> 或 <kbd>↑</kbd> 跳跃 · 按 <kbd>ESC</kbd> 退出</p>
+    <!-- 操作提示 -->
+    <p class="game-tip">
+      按 <kbd>空格</kbd> / <kbd>↑</kbd> 或点击画面跳跃 · 按 <kbd>ESC</kbd> 退出
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * DinoGame - Canvas 断网小恐龙游戏组件
+ * ============================================================
+ *  DinoGame - Canvas 断网小恐龙游戏组件
+ *  ------------------------------------------------------------
+ *  游戏参数说明：
+ *  - 重力加速度：0.6 px/frame
+ *  - 初始速度：6 px/frame
+ *  - 速度递增：每 100 分 +0.5
+ *  - 障碍物间隔：100~200 帧（随机，随速度加快而缩短）
+ *  - 帧率：约 60fps（使用 requestAnimationFrame）
  *
- * 游戏参数说明：
- * - 重力加速度：0.6 px/frame
- * - 初始速度：6 px/frame
- * - 速度递增：每 100 分 +0.5
- * - 障碍物间隔：100~200 帧（随机）
- * - 帧率：约 60fps（使用 requestAnimationFrame）
+ *  配色说明：
+ *  Canvas 无法直接使用 CSS 变量，因此通过 getComputedStyle
+ *  读取设计令牌的计算值缓存为调色板；并用 MutationObserver
+ *  监听 html.dark 类变化，主题切换时自动刷新配色。
+ * ============================================================
  */
 import type { GameObject } from '~/types'
 
@@ -65,6 +85,82 @@ const speed = ref(6)
 /** 游戏是否结束 */
 const isGameOver = ref(false)
 
+// ---------- 主题调色板 ----------
+/**
+ * 画布配色全部来自 main.css 的设计令牌；
+ * 初始值为亮色主题兜底（SSR / 读取失败时使用），
+ * 挂载后会立即用真实计算值刷新。
+ */
+interface GamePalette {
+  skyTop: string      // 天空渐变顶部
+  skyBottom: string   // 天空渐变底部
+  mountain: string    // 远山剪影
+  ground: string      // 地面（雪地）填充
+  groundLine: string  // 地面轮廓线
+  stone: string       // 地面小石子
+  boneFill: string    // 骨头主体
+  boneShade: string   // 骨头内阴影
+  stumpFill: string   // 树桩主体
+  stumpRing: string   // 树桩年轮
+  particleRgb: string // 粒子颜色（"r, g, b" 三元组，便于拼 rgba）
+}
+
+const palette = reactive<GamePalette>({
+  skyTop: '#F7F9FC',
+  skyBottom: '#EEF3F9',
+  mountain: '#E2E8F0',
+  ground: '#FFFFFF',
+  groundLine: '#94A3B8',
+  stone: '#94A3B8',
+  boneFill: '#94A3B8',
+  boneShade: '#FFFFFF',
+  stumpFill: '#64748B',
+  stumpRing: '#FFFFFF',
+  particleRgb: '74, 144, 217'
+})
+
+/** 读取某个 CSS 自定义属性的计算值，读取失败时回退到 fallback */
+function cssVar(name: string, fallback: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+/** 把 #rgb / #rrggbb / rgb() 颜色解析为 "r, g, b" 三元组（用于 canvas rgba()） */
+function toRgbTriplet(color: string, fallback: string): string {
+  const hexMatch = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hexMatch) {
+    let hex = hexMatch[1]
+    if (hex.length === 3) {
+      hex = hex.split('').map((c) => c + c).join('')
+    }
+    const num = parseInt(hex, 16)
+    return `${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}`
+  }
+  const rgbMatch = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+  if (rgbMatch) {
+    return `${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}`
+  }
+  return fallback
+}
+
+/** 从当前主题刷新画布调色板 */
+function refreshPalette() {
+  palette.skyTop = cssVar('--color-bg-primary', palette.skyTop)
+  palette.skyBottom = cssVar('--color-bg-tertiary', palette.skyBottom)
+  palette.mountain = cssVar('--color-border', palette.mountain)
+  palette.ground = cssVar('--color-bg-secondary', palette.ground)
+  palette.groundLine = cssVar('--color-text-muted', palette.groundLine)
+  palette.stone = cssVar('--color-text-muted', palette.stone)
+  palette.boneFill = cssVar('--color-text-muted', palette.boneFill)
+  palette.boneShade = cssVar('--color-bg-secondary', palette.boneShade)
+  palette.stumpFill = cssVar('--color-text-secondary', palette.stumpFill)
+  palette.stumpRing = cssVar('--color-bg-secondary', palette.stumpRing)
+  palette.particleRgb = toRgbTriplet(cssVar('--color-accent', '#4A90D9'), palette.particleRgb)
+}
+
+/** 监听 html.dark 类切换，主题变化时自动刷新调色板 */
+let themeObserver: MutationObserver | null = null
+
 // ---------- 玩家（狼角色） ----------
 const player = reactive({
   x: 80,
@@ -72,7 +168,8 @@ const player = reactive({
   width: 40,
   height: 50,
   vy: 0,           // 垂直速度
-  isJumping: false
+  isJumping: false,
+  isDucking: false // 预留字段：趴下动作（当前未实现，重置时需归位）
 })
 
 const GRAVITY = 0.6
@@ -221,18 +318,15 @@ function render() {
   // 清空画布
   ctx.clearRect(0, 0, w, h)
 
-  // 背景（天空渐变 - 适配暗色模式）
-  const isDark = document.documentElement.classList.contains('dark')
-  const skyTop = isDark ? '#1a1a2e' : '#e8f4f8'
-  const skyBottom = isDark ? '#16213e' : '#f0f4f8'
+  // 背景：天空渐变（取自主题背景层级，雪地氛围）
   const gradient = ctx.createLinearGradient(0, 0, 0, h)
-  gradient.addColorStop(0, skyTop)
-  gradient.addColorStop(0.7, skyBottom)
+  gradient.addColorStop(0, palette.skyTop)
+  gradient.addColorStop(0.7, palette.skyBottom)
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, w, h)
 
-  // 远山（装饰）
-  ctx.fillStyle = isDark ? '#2d3a4f' : '#dce8ef'
+  // 远山（装饰，随地面极缓慢移动制造视差）
+  ctx.fillStyle = palette.mountain
   ctx.beginPath()
   ctx.moveTo(0, GROUND_Y + 50)
   for (let x = 0; x <= w; x += 60) {
@@ -243,19 +337,19 @@ function render() {
   ctx.fill()
 
   // 地面
-  ctx.fillStyle = isDark ? '#334155' : '#c4b5a5'
+  ctx.fillStyle = palette.ground
   ctx.fillRect(0, GROUND_Y + player.height, w, h - GROUND_Y - player.height)
 
-  // 地面纹理线
-  ctx.strokeStyle = isDark ? '#475569' : '#a89888'
+  // 地面轮廓线
+  ctx.strokeStyle = palette.groundLine
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(0, GROUND_Y + player.height)
   ctx.lineTo(w, GROUND_Y + player.height)
   ctx.stroke()
 
-  // 地面小石子
-  ctx.fillStyle = isDark ? '#64748b' : '#b0a090'
+  // 地面小石子（随速度滚动）
+  ctx.fillStyle = palette.stone
   for (let x = -groundOffset; x < w; x += 40) {
     ctx.beginPath()
     ctx.arc(x, GROUND_Y + player.height + 8, 2, 0, Math.PI * 2)
@@ -274,9 +368,9 @@ function render() {
   // 绘制玩家（狼角色）
   drawPlayer(ctx)
 
-  // 绘制粒子
+  // 绘制粒子（品牌强调色，透明度随生命周期衰减）
   for (const p of particles) {
-    ctx.fillStyle = `rgba(74, 144, 217, ${p.life / p.maxLife})`
+    ctx.fillStyle = `rgba(${palette.particleRgb}, ${p.life / p.maxLife})`
     ctx.beginPath()
     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
     ctx.fill()
@@ -292,7 +386,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D) {
 
   ctx.save()
 
-  // 身体颜色（狼灰色）
+  // 身体颜色（狼灰蓝色，与品牌蓝色系协调，亮暗主题下均清晰）
   const bodyColor = '#7B8CA3'
   const bellyColor = '#D5DDE5'
   const earColor = '#5C6D80'
@@ -406,29 +500,26 @@ function drawPlayer(ctx: CanvasRenderingContext2D) {
 
 /** 绘制障碍物 */
 function drawObstacle(ctx: CanvasRenderingContext2D, obs: Obstacle) {
-  const isDark = document.documentElement.classList.contains('dark')
-
   if (obs.type === 'bone') {
-    // 绘制骨头
-    ctx.fillStyle = isDark ? '#cbd5e1' : '#e8e0d5'
+    // 绘制骨头（主体 + 两端圆头）
+    ctx.fillStyle = palette.boneFill
     ctx.fillRect(obs.x, obs.y + 4, obs.width, obs.height - 8)
-    // 两端圆头
     ctx.beginPath()
     ctx.arc(obs.x, obs.y + obs.height / 2, 8, 0, Math.PI * 2)
     ctx.fill()
     ctx.beginPath()
     ctx.arc(obs.x + obs.width, obs.y + obs.height / 2, 8, 0, Math.PI * 2)
     ctx.fill()
-    // 阴影
-    ctx.fillStyle = isDark ? '#94a3b8' : '#d4c9b8'
+    // 中部镂空高光，增加立体感
+    ctx.fillStyle = palette.boneShade
     ctx.fillRect(obs.x, obs.y + 8, obs.width, obs.height - 16)
   } else {
     // 绘制树桩
-    ctx.fillStyle = isDark ? '#8b7355' : '#a0845c'
+    ctx.fillStyle = palette.stumpFill
     roundRect(ctx, obs.x, obs.y, obs.width, obs.height, 6)
     ctx.fill()
-    // 年轮
-    ctx.strokeStyle = isDark ? '#6b5335' : '#8b6f47'
+    // 年轮（镂空色，双主题下均与树桩主体形成对比）
+    ctx.strokeStyle = palette.stumpRing
     ctx.lineWidth = 1.5
     ctx.beginPath()
     ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 3, 8, 0, Math.PI * 2)
@@ -503,16 +594,27 @@ function handleExit() {
   emit('exit')
 }
 
+/** 执行跳跃（仅当角色在地面上时有效） */
+function jump() {
+  if (!gameRunning || isGameOver.value) return
+  if (!player.isJumping) {
+    player.vy = JUMP_FORCE
+    player.isJumping = true
+  }
+}
+
+/** 点击 / 触摸画布跳跃（移动端支持） */
+function handleTapJump() {
+  jump()
+}
+
 /** 处理键盘输入 */
 function handleControlKey(e: KeyboardEvent) {
   if (!gameRunning || isGameOver.value) return
 
   if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
     e.preventDefault()
-    if (!player.isJumping) {
-      player.vy = JUMP_FORCE
-      player.isJumping = true
-    }
+    jump()
   } else if (e.key === 'Escape') {
     e.preventDefault()
     handleExit()
@@ -537,11 +639,21 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number,
 
 // 生命周期
 onMounted(() => {
+  // 用当前主题的计算值刷新调色板，并监听后续主题切换
+  refreshPalette()
+  themeObserver = new MutationObserver(refreshPalette)
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+  })
+
   window.addEventListener('keydown', handleControlKey)
   startGame()
 })
 
 onUnmounted(() => {
+  themeObserver?.disconnect()
+  themeObserver = null
   window.removeEventListener('keydown', handleControlKey)
   gameRunning = false
   if (animationId) {
@@ -555,13 +667,12 @@ defineExpose({ startGame, handleExit })
 </script>
 
 <style scoped>
-/* ---------- 游戏容器 ---------- */
+/* ---------- 游戏容器（叠加全局 .card 工具类） ---------- */
 .dino-game {
   position: relative;
-  border-radius: var(--radius-md);
   overflow: hidden;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  background: var(--color-bg-secondary);
 }
 
 /* ---------- HUD 信息栏 ---------- */
@@ -569,39 +680,51 @@ defineExpose({ startGame, handleExit })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
   background: var(--color-bg-tertiary);
   border-bottom: 1px solid var(--color-border);
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+}
+
+.hud-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   flex-wrap: wrap;
-  gap: 8px;
 }
 
-.game-score {
-  font-weight: 700;
+/* 数据徽章：胶囊形小标签，数字用等宽字体避免跳动 */
+.hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px 10px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.hud-chip-score {
   color: var(--color-accent);
+  background: var(--color-accent-bg);
+  border-color: transparent;
 }
 
-.game-speed {
-  color: var(--color-text-muted);
+.hud-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  /* 等宽数字 + 固定最小宽度，分数增长时布局不抖动 */
+  min-width: 3ch;
+  text-align: right;
 }
 
 .game-exit-btn {
-  padding: 4px 12px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all var(--transition-fast);
-}
-
-.game-exit-btn:hover {
-  background: var(--color-accent);
-  color: #fff;
-  border-color: var(--color-accent);
+  flex-shrink: 0;
 }
 
 /* ---------- Canvas 画布 ---------- */
@@ -611,25 +734,34 @@ defineExpose({ startGame, handleExit })
   max-width: 800px;
   height: auto;
   cursor: pointer;
+  /* 移动端禁用双击缩放与触摸滚动，保证连点跳跃手感 */
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ---------- 操作提示 ---------- */
 .game-tip {
   text-align: center;
-  padding: 10px;
+  padding: var(--space-3) var(--space-4);
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
   background: var(--color-bg-tertiary);
   border-top: 1px solid var(--color-border);
 }
 
 .game-tip kbd {
+  display: inline-block;
   padding: 1px 6px;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 3px;
-  font-size: 0.85em;
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
   font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
 }
 </style>

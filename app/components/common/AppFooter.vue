@@ -1,39 +1,54 @@
 <!--
 ============================================================
   雪年个人网站 - 页脚
-  版权信息、社交平台图标链接
+  分区布局：站点信息（Logo + 简介）+ 社交链接 +
+  版权/技术信息底栏
 ============================================================
 -->
 <template>
   <footer class="app-footer">
     <div class="footer-inner">
-      <!-- 社交平台图标 -->
-      <div class="footer-social">
-        <a
-          v-for="link in socialLinks"
-          :key="link.platform"
-          :href="link.url"
-          :aria-label="link.platform"
-          :title="link.platform"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="social-link"
-          :style="{ '--social-color': link.color }"
-        >
-          <!-- 使用简单的 SVG 图标来替代 nuxt-icon（避免依赖问题） -->
-          <span class="social-icon" v-html="getSocialIcon(link.platform)"></span>
-        </a>
+      <!-- 上半区：站点信息 + 社交链接 -->
+      <div class="footer-main">
+        <!-- 站点信息 -->
+        <div class="footer-brand">
+          <img
+            src="/images/头像.png"
+            alt="雪年的头像"
+            class="footer-logo"
+            width="40"
+            height="40"
+            loading="lazy"
+          />
+          <div class="footer-brand-text">
+            <p class="footer-site-name">雪年 · XueNian</p>
+            <p class="footer-tagline">一只热爱艺术与代码的小狼w</p>
+          </div>
+        </div>
+
+        <!-- 社交平台链接（数据见 app/data/social.ts） -->
+        <nav class="footer-social" aria-label="社交平台链接">
+          <a
+            v-for="link in socialLinks"
+            :key="link.platform"
+            :href="link.url"
+            :aria-label="link.platform"
+            :title="link.platform"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="social-link"
+            :style="{ '--social-color': link.color }"
+          >
+            <!-- 内联 SVG 图标，避免引入额外图标库 -->
+            <span class="social-icon" v-html="getSocialIcon(link.platform)"></span>
+          </a>
+        </nav>
       </div>
 
-      <!-- 版权信息 -->
-      <div class="footer-copyright">
+      <!-- 底栏：版权与技术信息（暂无备案信息，取得后在此追加） -->
+      <div class="footer-bottom">
         <p>&copy; {{ currentYear }} 雪年 · XueNian. All rights reserved.</p>
-        <p class="footer-subtitle">一只热爱艺术与代码的小狼w </p>
-      </div>
-
-      <!-- ICP 备案（可选） -->
-      <div class="footer-beian">
-        <p>由 Nuxt 4 驱动 · 托管于本地服务器</p>
+        <p>由 Nuxt 4 驱动</p>
       </div>
     </div>
   </footer>
@@ -41,8 +56,11 @@
 
 <script setup lang="ts">
 /**
- * AppFooter - 页脚组件
- * 展示社交链接、版权信息
+ * ============================================================
+ *  AppFooter - 页脚组件
+ *  展示站点信息、社交链接与版权信息；
+ *  社交链接数据来自 app/data/social.ts
+ * ============================================================
  */
 import { socialLinks } from '~/data/social'
 
@@ -69,28 +87,66 @@ function getSocialIcon(platform: string): string {
 <style scoped>
 /* ---------- 页脚容器 ---------- */
 .app-footer {
+  margin-top: auto;
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
-  padding: 40px 24px;
-  margin-top: auto;
 }
 
 .footer-inner {
-  max-width: 1200px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  padding: var(--space-12) var(--space-6) var(--space-6);
 }
 
-/* ---------- 社交图标 ---------- */
+/* ---------- 上半区：站点信息居左，社交链接居右 ---------- */
+.footer-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+/* ---------- 站点信息 ---------- */
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.footer-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  box-shadow: var(--shadow-sm);
+}
+
+.footer-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.footer-site-name {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.footer-tagline {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* ---------- 社交图标：圆形按钮，悬停填充平台主题色 ---------- */
 .footer-social {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-3);
   flex-wrap: wrap;
-  justify-content: center;
 }
 
 .social-link {
@@ -99,18 +155,22 @@ function getSocialIcon(platform: string): string {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   color: var(--color-text-secondary);
   background: var(--color-bg-tertiary);
-  transition: color var(--transition-fast),
-              background var(--transition-fast),
-              transform var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
+/* 悬停时上浮并填充平台品牌色（--social-color 由数据注入） */
 .social-link:hover {
-  color: #fff;
+  color: #FFFFFF;
   background: var(--social-color, var(--color-accent));
   transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .social-icon {
@@ -121,42 +181,53 @@ function getSocialIcon(platform: string): string {
   height: 20px;
 }
 
-/* ---------- 版权信息 ---------- */
-.footer-copyright {
-  text-align: center;
+/* ---------- 底栏：版权与技术信息 ---------- */
+.footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border-light);
 }
 
-.footer-copyright p {
+.footer-bottom p {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-}
-
-.footer-subtitle {
-  margin-top: 6px !important;
-  font-size: 0.85rem !important;
-  color: var(--color-text-muted) !important;
-}
-
-/* ---------- 备案信息 ---------- */
-.footer-beian {
-  text-align: center;
-}
-
-.footer-beian p {
-  margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
 }
 
-/* ---------- 响应式 ---------- */
+/* ---------- 响应式：窄屏改为纵向居中排布 ---------- */
 @media (max-width: 640px) {
-  .app-footer {
-    padding: 32px 16px;
+  .footer-inner {
+    padding: var(--space-8) var(--space-4) var(--space-6);
+  }
+
+  .footer-main {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    gap: var(--space-6);
+  }
+
+  .footer-brand {
+    flex-direction: column;
+  }
+
+  .footer-brand-text {
+    align-items: center;
   }
 
   .footer-social {
-    gap: 12px;
+    justify-content: center;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
   }
 }
 </style>

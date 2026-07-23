@@ -50,11 +50,21 @@ function generateToken(): string {
   return randomBytes(32).toString('hex')
 }
 
-/** 获取客户端 IP（考虑代理转发） */
+/**
+ * 获取客户端 IP（考虑代理转发）
+ * 安全考量：X-Forwarded-For 可被客户端伪造，其格式为
+ * "伪造值, ..., 真实对端IP"——nginx 使用 $proxy_add_x_forwarded_for 时
+ * 会把客户端发来的原始 XFF 原样保留在左侧，再在最后追加真实对端 IP。
+ * 因此取【最后一个】值（nginx 实际看到的对端），而非第一个，
+ * 防止攻击者伪造 XFF 不断更换 IP 绕过登录限速。
+ * 前提是 Node 服务仅监听本机、必须经 nginx 反代访问（见 SECURITY.md）。
+ */
 export function getClientIP(event: any): string {
   const xForwardedFor = getHeader(event, 'x-forwarded-for')
   if (xForwardedFor) {
-    return String(xForwardedFor).split(',')[0]!.trim()
+    // 取最后一个值：离本服务最近的代理（nginx）追加的真实对端 IP
+    const ips = String(xForwardedFor).split(',')
+    return ips[ips.length - 1]!.trim()
   }
   return event.node?.req?.socket?.remoteAddress || 'unknown'
 }
@@ -74,7 +84,12 @@ function isProductionEnv(): boolean {
 // ====================================================================
 
 /**
- * 检查登录频率限制（按 IP + 用户名组合）
+ * 检查登录频率限制（按 IP + 用户名组合，防暴力破解）
+ * 机制：15 分钟滑动窗口内最多失败 5 次，达到上限锁定 15 分钟；
+ * 窗口过期后自动重置计数
+ * @param event - H3 事件对象
+ * @param username - 登录用户名
+ * @returns allowed 为 false 时携带中文原因说明
  */
 export function checkLoginRateLimit(event: any, username: string): { allowed: boolean; reason?: string } {
   const ip = getClientIP(event)
@@ -140,7 +155,10 @@ export function resetLoginAttempts(event: any, username: string): void {
 // ====================================================================
 
 /**
- * 验证凭据，成功则创建 session 并设置 cookie
+ * 验证凭据，成功则创建内存 session 并设置会话 cookie
+ * cookie 属性：httpOnly（防 XSS 窃取）、生产环境 secure（仅 HTTPS）、
+ * sameSite=lax（跨站 POST 不携带，配合 CSRF 校验双重防护）
+ * 注意：session 存内存，服务重启后全部掉线（预期行为）
  * @returns 账号信息（成功）或 null（失败）
  */
 export async function loginAndCreateSession(event: any, username: string, password: string): Promise<AdminAccount | null> {
@@ -204,7 +222,8 @@ export function destroySession(event: any): void {
 }
 
 /**
- * 鉴权中间件：未登录返回 401
+ * 鉴权守卫：未登录抛出 401
+ * 约定：server/api/admin/ 下每个端点必须第一行调用本函数
  */
 export function requireAuth(event: any): SessionInfo {
   const user = getCurrentUser(event)

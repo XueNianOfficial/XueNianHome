@@ -1,13 +1,17 @@
 /**
- * POST /api/admin/friends/save
- * 保存友链列表（需管理员登录）
- * Body: { friends: FriendLink[] }
+ * ============================================================
+ *  POST /api/admin/friends/save
+ *  保存友链列表（整体覆盖 server/data/friends.json）
+ *  Body: { friends: FriendLink[] }
+ *  安全：requireAuth 鉴权 + csrfProtection 校验
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { saveFriends } from '../../../utils/friends-storage'
 
 export default defineEventHandler(async (event) => {
   requireAuth(event)
+  csrfProtection(event)
   const body = await readBody(event)
   const { friends } = body
 

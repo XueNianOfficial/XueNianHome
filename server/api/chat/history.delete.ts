@@ -5,9 +5,7 @@
  *  若不传 sessionId 则删除该用户全部聊天记录
  * ============================================================
  */
-import { deleteUserSession } from '../../utils/chat-storage'
-import { existsSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { adminDeleteUserChat, deleteUserSession } from '../../utils/chat-storage'
 
 export default defineEventHandler(async (event) => {
   // CSRF 防护
@@ -28,12 +26,8 @@ export default defineEventHandler(async (event) => {
     // 删除单个会话
     deleteUserSession(userId, sessionId)
   } else {
-    // 删除该用户全部记录
-    const safeId = userId.replace(/[^a-zA-Z0-9_-]/g, '_')
-    const filePath = join(process.cwd(), 'server/data/chat', `${safeId}.json`)
-    if (existsSync(filePath)) {
-      try { unlinkSync(filePath) } catch { /* 忽略 */ }
-    }
+    // 删除该用户全部记录（复用 chat-storage 的统一实现，含路径安全过滤）
+    adminDeleteUserChat(userId)
   }
 
   return { success: true }

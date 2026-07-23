@@ -1,6 +1,11 @@
 /**
- * POST /api/admin/login
- * 管理后台登录（用户名+密码，含速率限制）
+ * ============================================================
+ *  POST /api/admin/login
+ *  管理后台登录（用户名 + 密码）
+ *  安全：csrfProtection 校验 + 登录限速（IP+用户名，15 分钟 5 次失败锁 15 分钟）
+ *        + scrypt 密码校验 + 内存 session（24h）
+ *  注意：本端点本身不需要 requireAuth（未登录才能登录）
+ * ============================================================
  */
 import {
   loginAndCreateSession,
@@ -14,6 +19,9 @@ export default defineEventHandler(async (event) => {
   if (event.method !== 'POST') {
     throw createError({ statusCode: 405, message: '仅支持 POST 请求' })
   }
+
+  // CSRF 防护（登录页内联脚本会从 csrf_token cookie 取值并附带请求头）
+  csrfProtection(event)
 
   const { username, password } = await readBody(event)
 

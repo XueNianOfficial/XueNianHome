@@ -25,11 +25,12 @@ interface ParsedMarkdown {
   content: string
 }
 
-/** 博客文章元数据（与 app/types 中的 BlogPostMeta 保持一致） */
+/** 博客文章元数据（字段与 app/types/index.ts 的 BlogPostMeta 保持一致，另含 slug） */
 export interface BlogPostMeta {
   title: string
   date: string
   description: string
+  /** 封面图路径；服务端以 null 表示无封面（前端类型为 cover?: string，消费时按空值兼容） */
   cover?: string | null
   tags?: string[]
   draft?: boolean
@@ -109,6 +110,19 @@ const BLOG_CONTENT_DIR = join(process.cwd(), 'content', 'blog')
 // ==================== 导出函数 ====================
 
 /**
+ * 校验文章 slug 是否安全（防路径遍历）
+ * 仅允许字母、数字、下划线、连字符与中文，
+ * 从根上杜绝 "../" 之类的路径穿越拼入文件路径。
+ * 管理端 blog/save、blog/delete 接口复用本函数（Nitro 自动导入），
+ * 保证公开读与后台写使用同一份白名单规则
+ * @param slug - 待校验的文章 slug
+ * @returns true 表示 slug 合法
+ */
+export function isSafeSlug(slug: string): boolean {
+  return /^[a-zA-Z0-9_-一-龥]+$/.test(slug)
+}
+
+/**
  * 获取所有博客文章列表（不含正文 HTML）
  * 自动跳过草稿，按日期倒序排列
  * 结果缓存 5 分钟
@@ -164,6 +178,9 @@ export async function getAllBlogPosts(): Promise<BlogPostMeta[]> {
  * @returns 文章数据，未找到返回 null
  */
 export async function getBlogPost(slug: string): Promise<BlogPost | null> {
+  // 安全：slug 直接参与文件路径拼接，必须先过滤，防止路径遍历读取任意 .md 文件
+  if (!isSafeSlug(slug)) return null
+
   const cacheKey = `post_${slug}`
   const cached = getCache<BlogPost>(cacheKey)
   if (cached) return cached

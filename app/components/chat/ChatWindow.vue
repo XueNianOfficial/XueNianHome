@@ -1,16 +1,10 @@
-<!--
-============================================================
-  雪年个人网站 - AI 聊天窗口（多会话版）
-  消息列表 + 输入框 + 发送按钮
-  支持：会话管理、图片粘贴/上传、音频录制、预设过滤
-============================================================
--->
 <template>
+  <!-- 聊天窗口编排层：工具栏 + 消息列表 + 输入区 -->
   <div class="chat-window card">
     <!-- 免责声明弹窗 -->
     <div v-if="showDisclaimer" class="modal-overlay">
-      <div class="modal card disclaimer-modal">
-        <h3>📋 免责声明</h3>
+      <div class="modal-card card disclaimer-modal">
+        <h3 class="modal-title">📋 免责声明</h3>
         <div class="disclaimer-body">
           <p>本聊天功能由 AI 模型驱动，AI 生成内容不代表本站立场。</p>
           <ul>
@@ -29,128 +23,121 @@
       </div>
     </div>
 
-    <!-- 会话侧栏 -->
-    <div v-if="showSessions" class="chat-sessions-overlay" @click.self="showSessions = false">
-      <div class="chat-sessions-panel card">
-        <div class="sessions-header">
-          <h3>💬 会话列表</h3>
-          <button class="btn-close" @click="showSessions = false">✕</button>
-        </div>
-        <button class="btn-primary btn-full" @click="handleCreateSession">
-          + 创建新对话
-        </button>
-        <div class="sessions-list">
-          <div
-            v-for="session in sessions"
-            :key="session.id"
-            class="session-item"
-            :class="{ active: session.id === activeSessionId }"
-            @click="handleSwitchSession(session.id)"
-          >
-            <div class="session-info">
-              <span class="session-name">{{ session.name }}</span>
-              <span class="session-meta">{{ session.messages.length }} 条 · {{ formatDate(session.lastActiveAt) }}</span>
-            </div>
-            <div class="session-actions">
-              <button class="btn-icon-sm" title="重命名" @click.stop="startRename(session)">✏️</button>
-              <button
-                v-if="sessions.length > 1"
-                class="btn-icon-sm btn-danger-icon"
-                title="删除"
-                @click.stop="handleDeleteSession(session.id)"
-              >🗑️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 会话列表抽屉 -->
+    <ChatSessionList v-model="showSessions" />
 
     <!-- 顶部工具栏 -->
     <div class="chat-toolbar">
       <div class="toolbar-left">
-        <button class="btn-sessions" title="会话列表" @click="showSessions = !showSessions">
+        <button class="btn-ghost session-name-btn" title="会话列表" @click="showSessions = true">
           💬 {{ activeSession?.name || '对话' }}
         </button>
-        <button class="btn-new-chat" title="新建对话" @click="handleCreateSession">＋</button>
+        <button class="icon-btn" title="新建对话" @click="handleCreateSession">＋</button>
       </div>
 
       <div class="toolbar-right">
-        <div class="preset-selector">
-          <select
-            v-model="selectedPreset"
-            class="preset-select"
-            @change="onPresetChange"
+        <select
+          v-model="selectedPreset"
+          class="preset-select"
+          title="选择 AI 预设"
+          @change="onPresetChange"
+        >
+          <option value="">默认</option>
+          <option
+            v-for="p in presets"
+            :key="p.name"
+            :value="p.name"
           >
-            <option value="">默认</option>
-            <option
-              v-for="p in presets"
-              :key="p.name"
-              :value="p.name"
-            >
-              {{ p.name }}
-              {{ p.supportsVision ? '🖼️' : '' }}
-              {{ p.supportsAudio ? '🎤' : '' }}
-            </option>
-          </select>
+            {{ p.name }}{{ p.supportsVision ? ' 🖼️' : '' }}{{ p.supportsAudio ? ' 🎤' : '' }}
+          </option>
+        </select>
+
+        <!-- 能力开关：深度思考 / 联网搜索 / 画图 / 自定义提示词（按当前预设能力显示） -->
+        <button
+          v-if="supportsThinking"
+          class="icon-btn"
+          :class="{ active: activeSession?.enableThinking }"
+          title="深度思考"
+          @click="toggleThinking"
+        >🧠</button>
+        <button
+          v-if="supportsWebSearch"
+          class="icon-btn"
+          :class="{ active: activeSession?.enableSearch }"
+          title="联网搜索"
+          @click="toggleSearch"
+        >🌐</button>
+        <button
+          v-if="imageGenEnabled"
+          class="icon-btn"
+          :class="{ active: drawMode }"
+          title="画图模式"
+          @click="toggleDrawMode"
+        >🎨</button>
+        <div v-if="allowCustomSystemPrompt" class="prompt-btn-wrap">
+          <button
+            class="icon-btn"
+            :class="{ active: !!activeSession?.customSystemPrompt }"
+            title="提示词"
+            @click="togglePromptPopover"
+          >📝</button>
+          <!-- 自定义系统提示词小弹层（仅本会话生效） -->
+          <div v-if="showPromptPopover" class="prompt-popover">
+            <p class="prompt-popover-desc">自定义系统提示词（仅本会话生效）</p>
+            <textarea
+              v-model="customPromptInput"
+              class="prompt-popover-input"
+              rows="4"
+              placeholder="输入系统提示词…"
+            ></textarea>
+            <div class="prompt-popover-actions">
+              <button class="btn-ghost btn-sm" @click="clearCustomPrompt">清除</button>
+              <button class="btn-primary btn-sm" @click="saveCustomPrompt">保存</button>
+            </div>
+          </div>
         </div>
 
-        <div class="memory-controls">
-          <span v-if="hasMemory" class="memory-indicator" title="有聊天记录">💾 {{ messages.length }} 条</span>
-          <span
-            v-if="sessionTokenUsage.total > 0"
-            class="token-indicator"
-            title="Token 用量：输入 {{ sessionTokenUsage.input }} + 输出 {{ sessionTokenUsage.output }} = 总计 {{ sessionTokenUsage.total }}"
-          >
-            🎯 {{ sessionTokenUsage.total }}
-          </span>
-          <button
-            v-if="hasMemory"
-            class="btn-memory"
-            title="清除聊天记录"
-            @click="handleClearMemory"
-          >🗑️</button>
-        </div>
+        <span v-if="hasMemory" class="badge" title="当前会话消息数">💾 {{ messages.length }} 条</span>
+        <span
+          v-if="sessionTokenUsage.total > 0"
+          class="badge"
+          :title="`Token 用量：输入 ${sessionTokenUsage.input} + 输出 ${sessionTokenUsage.output} = 总计 ${sessionTokenUsage.total}`"
+        >🎯 {{ sessionTokenUsage.total }}</span>
+        <button
+          v-if="hasMemory"
+          class="icon-btn"
+          title="清除聊天记录"
+          @click="handleClearMemory"
+        >🗑️</button>
       </div>
     </div>
 
     <!-- 消息数量警告（800 条） -->
-    <div v-if="messageLimitWarning && !messageLimitReached" class="chat-limit-warning">
+    <div v-if="messageLimitWarning && !messageLimitReached" class="limit-banner warning">
       ⚠️ 当前会话已有 {{ messages.length }} 条消息，建议开启新对话以免达到 1000 条上限。
     </div>
 
     <!-- 滚动窗口模式提示 -->
-    <div v-if="slidingWindowActive" class="chat-limit-info">
+    <div v-if="slidingWindowActive" class="limit-banner info">
       🔄 滚动窗口模式：仅保留最近 400 条消息作为 AI 上下文，早期对话记忆已被裁剪，AI 可能遗忘之前的记忆。
     </div>
 
     <!-- 消息数量上限（1000 条）— 未启用滚动窗口时显示选择 -->
-    <div v-if="messageLimitReached && !slidingWindowActive" class="chat-limit-reached">
+    <div v-if="messageLimitReached && !slidingWindowActive" class="limit-banner danger">
       <p>🚫 当前会话已达到 1000 条消息上限。</p>
-      <p class="chat-limit-hint">AI 可能因上下文过长而遗忘早期记忆。你可以：</p>
-      <div class="chat-limit-actions">
-        <button class="btn-primary" @click="handleCreateSession">创建新对话</button>
-        <button class="btn-outline" @click="handleActivateSlidingWindow">
+      <p class="limit-hint">AI 可能因上下文过长而遗忘早期记忆。你可以：</p>
+      <div class="limit-actions">
+        <button class="btn-primary btn-sm" @click="handleCreateSession">创建新对话</button>
+        <button class="btn-outline btn-sm" @click="handleActivateSlidingWindow">
           继续对话（裁剪旧记忆）
         </button>
       </div>
-      <p class="chat-limit-note">选择「继续对话」将仅保留最近 400 条消息发送给 AI，早期对话记忆将被忽略。</p>
+      <p class="limit-note">选择「继续对话」将仅保留最近 400 条消息发送给 AI，早期对话记忆将被忽略。</p>
     </div>
 
     <!-- 消息列表 -->
-    <div ref="messagesContainer" class="chat-messages">
-      <div v-if="messages.length === 0" class="chat-welcome">
-        <img :src="welcomeAvatar" alt="AI 头像" class="about-avatar" width="180" height="180" @error="onWelcomeAvatarError">
-        <h3>你好，这里是雪年！</h3>
-        <p>一只热爱艺术与代码的小狼，很高兴认识你～<br />有什么想聊的吗？</p>
-        <div class="welcome-prompts">
-          <button
-            v-for="prompt in quickPrompts"
-            :key="prompt"
-            class="prompt-btn"
-            @click="sendMessage(prompt)"
-          >{{ prompt }}</button>
-        </div>
-      </div>
+    <div ref="messagesContainer" class="chat-messages" @scroll="onScroll">
+      <ChatWelcome v-if="messages.length === 0 && !isLoading" />
 
       <ChatMessage
         v-for="msg in messages"
@@ -158,270 +145,230 @@
         :message="msg"
       />
 
-      <!-- 流式传输中：仅显示思考指示器（不泄露未完成文本） -->
+      <!-- 流式状态指示：深度思考 / 联网搜索进行中 -->
+      <div v-if="streamingReasoning" class="stream-status">💭 思考中…</div>
+      <div v-if="isLoading && streamSearched" class="stream-status">🌐 正在联网搜索…</div>
+
+      <!-- 流式预览气泡：显示正在生成的内容（已经过标签过滤） -->
+      <div v-if="isLoading && streamingPreview" class="stream-preview">
+        <img :src="streamAvatar" alt="AI 头像" class="stream-avatar" @error="onAvatarError" />
+        <div class="stream-bubble">
+          <span class="stream-text">{{ streamingPreview }}</span>
+          <span class="stream-cursor">▍</span>
+        </div>
+      </div>
+
+      <!-- 思考中指示器 -->
       <div v-if="isLoading" class="chat-loading">
         <div class="typing-indicator">
           <span></span><span></span><span></span>
         </div>
-        <span class="loading-text">雪年正在思考...</span>
+        <span class="loading-text">{{ loadingText }}</span>
       </div>
 
+      <!-- 错误提示 + 重试 -->
       <div v-if="error" class="chat-error">
-        <p>😢 {{ error }}</p>
-        <button class="btn-outline" @click="clearError">关闭</button>
+        <p class="error-text">😢 {{ error }}</p>
+        <div class="error-actions">
+          <button class="btn-primary btn-sm" @click="handleRetry">重试</button>
+          <button class="btn-ghost btn-sm" @click="clearError">关闭</button>
+        </div>
       </div>
     </div>
 
-    <!-- 待发送图片预览 -->
-    <div v-if="pendingImages.length > 0" class="pending-images">
-      <div v-for="(img, idx) in pendingImages" :key="idx" class="pending-img-wrap">
-        <img :src="img" class="pending-img" alt="待发送图片" />
-        <button class="pending-img-remove" @click="removePendingImage(idx)">✕</button>
-      </div>
-    </div>
-
-    <!-- 输入区域 -->
-    <div class="chat-input-area">
+    <!-- 回到底部悬浮按钮 -->
+    <Transition name="fade">
       <button
-        v-if="supportsVision"
-        class="btn-input-action"
-        title="上传图片"
-        @click="triggerImageUpload"
-        :disabled="isLoading || sendBlocked"
-      >🖼️</button>
+        v-if="!stickToBottom"
+        class="back-to-bottom"
+        title="回到底部"
+        @click="scrollToBottom(true)"
+      >↓</button>
+    </Transition>
 
-      <button
-        v-if="supportsAudio"
-        class="btn-input-action"
-        :class="{ recording: isRecording }"
-        title="按住录音，松手停止"
-        :disabled="isLoading || sendBlocked"
-        @mousedown.prevent="startRecording"
-        @mouseup.prevent="stopRecording"
-        @mouseleave="cancelRecording"
-        @touchstart.prevent="startRecording"
-        @touchend.prevent="stopRecording"
-        @touchcancel="cancelRecording"
-      >{{ isRecording ? '🎤' : '🎤' }}</button>
-
-      <textarea
-        ref="inputRef"
-        v-model="inputText"
-        class="chat-input"
-        :placeholder="sendBlocked ? '已达到 1000 条消息上限，请选择处理方式' : '输入消息，和雪年聊天...（支持粘贴图片）'"
-        :disabled="isLoading || sendBlocked"
-        rows="2"
-        @keydown.enter.exact.prevent="handleSend"
-        @keydown.enter.shift.exact="inputText += '\n'"
-        @paste="handlePaste"
-      ></textarea>
-
-      <button
-        class="btn-primary chat-send-btn"
-        :disabled="!inputText.trim() || isLoading || sendBlocked"
-        @click="handleSend"
-      >
-        <span v-if="!isLoading">发送</span>
-        <span v-else class="sending-dot">...</span>
-      </button>
-    </div>
-
-    <!-- 隐藏的图片上传 input -->
-    <input
-      ref="imageInputRef"
-      type="file"
-      accept="image/png,image/jpeg,image/gif,image/webp"
-      class="file-input-hidden"
-      multiple
-      @change="handleImageUpload"
-    />
-
-    <!-- 重命名对话框 -->
-    <div v-if="renamingSession" class="modal-overlay" @click.self="renamingSession = null">
-      <div class="modal card modal-sm">
-        <h3>重命名会话</h3>
-        <input
-          v-model="renameText"
-          class="form-input"
-          placeholder="输入新名称"
-          @keydown.enter="confirmRename"
-        />
-        <div class="modal-actions">
-          <button class="btn-outline" @click="renamingSession = null">取消</button>
-          <button class="btn-primary" @click="confirmRename" :disabled="!renameText.trim()">确定</button>
-        </div>
-      </div>
-    </div>
-    <!-- 音频确认对话框 -->
-    <div v-if="showAudioConfirm" class="modal-overlay" @click.self="cancelAudio">
-      <div class="modal card audio-confirm-modal">
-        <h3>🎤 语音消息</h3>
-        <p class="audio-duration">录音时长：{{ audioDuration }}</p>
-        <audio
-          v-if="audioBlobUrl"
-          ref="audioPlayerRef"
-          :src="audioBlobUrl"
-          controls
-          class="audio-player"
-        ></audio>
-        <div class="modal-actions">
-          <button class="btn-outline" @click="cancelAudio">取消</button>
-          <button class="btn-primary" @click="sendAudio">发送</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 🔧 调试面板 (Shift+D 切换) -->
-    <div v-if="showDebugPanel" class="modal-overlay debug-overlay" @click.self="showDebugPanel = false">
-      <div class="modal card debug-panel">
-        <div class="debug-header">
-          <h3>🔧 调试面板</h3>
-          <div class="debug-header-right">
-            <span class="debug-preset-badge">{{ debugPresetName }} · {{ debugModelName }}</span>
-            <button class="btn-close" @click="showDebugPanel = false">✕</button>
-          </div>
-        </div>
-
-        <div class="debug-body">
-          <!-- 加载系统提示词按钮 -->
-          <div v-if="!debugSystemPromptLoaded" class="debug-load-hint">
-            <button class="btn-outline btn-sm" @click="loadDebugSystemPrompt">📥 加载系统提示词</button>
-            <span class="debug-hint-text">首次打开需手动加载</span>
-          </div>
-
-          <!-- 系统提示词 -->
-          <div class="debug-section">
-            <h4>📝 完整系统提示词</h4>
-            <div class="debug-code-block">
-              <pre>{{ debugSystemPrompt || '(未加载)' }}</pre>
-            </div>
-          </div>
-
-          <!-- 原始 AI 输出 -->
-          <div class="debug-section">
-            <h4>🤖 原始 AI 输出（最近一次）</h4>
-            <div class="debug-code-block">
-              <pre>{{ debugRawOutput || '(暂无输出，发送消息后显示)' }}</pre>
-            </div>
-          </div>
-
-          <!-- 消息统计 -->
-          <div class="debug-section">
-            <h4>📊 当前会话统计</h4>
-            <div class="debug-stats">
-              <div class="debug-stat-item">
-                <span class="debug-stat-label">消息数</span>
-                <span class="debug-stat-value">{{ messages.length }}</span>
-              </div>
-              <div class="debug-stat-item">
-                <span class="debug-stat-label">Token 用量</span>
-                <span class="debug-stat-value">🎯 {{ sessionTokenUsage.total }}</span>
-              </div>
-              <div class="debug-stat-item">
-                <span class="debug-stat-label">实验模式</span>
-                <span class="debug-stat-value">{{ enableExperimental ? '✅ 开启' : '❌ 关闭' }}</span>
-              </div>
-              <div class="debug-stat-item">
-                <span class="debug-stat-label">滚动窗口</span>
-                <span class="debug-stat-value">{{ slidingWindowActive ? '🔄 启用' : '➖ 关闭' }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 输入区 -->
+    <ChatInput @sent="scrollToBottom(true)" />
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * ChatWindow - AI 聊天窗口主组件（多会话版）
- * 支持：会话管理、图片粘贴/上传、音频录制、预设过滤
+ * ============================================================
+ *  ChatWindow - 聊天窗口编排层
+ *  - 组合 ChatSessionList / ChatMessage / ChatWelcome / ChatInput
+ *  - 负责：预设切换、免责声明、消息上限横幅、滚动管理、错误重试
+ *  - 工具栏能力开关：深度思考 / 联网搜索 / 画图模式 / 自定义系统提示词
+ * ============================================================
  */
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useChat } from '~/composables/useChat'
-import type { ChatSession } from '~/types'
+import ChatMessage from '~/components/chat/ChatMessage.vue'
+import ChatWelcome from '~/components/chat/ChatWelcome.vue'
+import ChatInput from '~/components/chat/ChatInput.vue'
+import ChatSessionList from '~/components/chat/ChatSessionList.vue'
 
 const {
-  sessions, activeSessionId, activeSession,
-  messages, isLoading, error,
-  sendMessage, clearError, clearMemory,
-  presets, currentPreset, currentPresetAvatar, presetsLoaded,
-  loadPresets, selectPreset,
-  supportsVision, supportsAudio,
-  enableExperimental,
-  hasMemory, sessionTokenUsage,
-  messageLimitWarning, messageLimitReached,
-  slidingWindowActive, sendBlocked, activateSlidingWindow,
-  pendingImages,
-  createSession, switchSession, deleteSession, renameSession,
-  addPendingImage, removePendingImage, clearPendingImages,
-  // 调试
-  debugRawOutput, debugSystemPrompt, debugPresetName, debugModelName,
-  fetchDebugSystemPrompt
+  activeSessionId,
+  activeSession,
+  messages,
+  isLoading,
+  streamingPreview,
+  error,
+  presets,
+  currentPreset,
+  currentPresetAvatar,
+  hasMemory,
+  sessionTokenUsage,
+  messageLimitWarning,
+  messageLimitReached,
+  slidingWindowActive,
+  createSession,
+  clearMemory,
+  activateSlidingWindow,
+  loadPresets,
+  selectPreset,
+  sendMessageAfterEdit,
+  clearError,
+  streamingReasoning,
+  streamSearched,
+  drawMode,
+  supportsThinking,
+  supportsWebSearch,
+  allowCustomSystemPrompt,
+  imageGenEnabled,
+  toggleThinking,
+  toggleSearch,
+  setCustomSystemPrompt,
+  toggleDrawMode,
 } = useChat()
 
-const inputText = ref('')
-const inputRef = ref<HTMLTextAreaElement | null>(null)
-const imageInputRef = ref<HTMLInputElement | null>(null)
-const messagesContainer = ref<HTMLElement | null>(null)
+// ==================== 预设切换 ====================
+
+/** 本地选中的预设（空字符串 = 默认预设） */
+const selectedPreset = ref('')
+
+watch(currentPreset, (val) => {
+  selectedPreset.value = val
+})
+
+function onPresetChange() {
+  selectPreset(selectedPreset.value)
+}
+
+// ==================== 会话操作 ====================
 
 const showSessions = ref(false)
-const renamingSession = ref<ChatSession | null>(null)
-const renameText = ref('')
 
-// ==================== 调试面板 ====================
-
-const showDebugPanel = ref(false)
-const debugSystemPromptLoaded = ref(false)
-
-/** 加载调试用系统提示词 */
-async function loadDebugSystemPrompt() {
-  await fetchDebugSystemPrompt()
-  debugSystemPromptLoaded.value = true
+function handleCreateSession() {
+  createSession()
+  selectedPreset.value = ''
+  scrollToBottom(true)
 }
 
-/** 键盘快捷键：Shift+D 切换调试面板 */
-function onKeyDown(e: KeyboardEvent) {
-  if (e.key === 'D' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    // 避免在输入框中触发
-    const tag = (e.target as HTMLElement)?.tagName
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-    e.preventDefault()
-    showDebugPanel.value = !showDebugPanel.value
-    // 首次打开时自动加载系统提示词
-    if (showDebugPanel.value && !debugSystemPromptLoaded.value) {
-      loadDebugSystemPrompt()
-    }
+function handleClearMemory() {
+  if (confirm('确定要清除当前会话的所有聊天记录吗？此操作不可撤销。')) {
+    clearMemory()
   }
 }
 
-onMounted(() => {
-  window.addEventListener('keydown', onKeyDown)
+function handleActivateSlidingWindow() {
+  if (confirm('启用滚动窗口模式后，AI 将只能看到最近 400 条消息，早期对话记忆会被遗忘。确定继续吗？')) {
+    activateSlidingWindow()
+  }
+}
+
+// ==================== 自定义系统提示词弹层 ====================
+
+/** 提示词弹层是否展开 */
+const showPromptPopover = ref(false)
+/** 弹层中的提示词草稿（点击保存时才写回会话） */
+const customPromptInput = ref('')
+
+/** 切换弹层展开状态；展开时同步当前会话已保存的提示词 */
+function togglePromptPopover() {
+  showPromptPopover.value = !showPromptPopover.value
+  if (showPromptPopover.value) {
+    customPromptInput.value = activeSession.value?.customSystemPrompt || ''
+  }
+}
+
+/** 保存自定义系统提示词并关闭弹层 */
+function saveCustomPrompt() {
+  setCustomSystemPrompt(customPromptInput.value)
+  showPromptPopover.value = false
+}
+
+/** 清除自定义系统提示词并关闭弹层 */
+function clearCustomPrompt() {
+  setCustomSystemPrompt('')
+  showPromptPopover.value = false
+}
+
+// ==================== 错误重试 ====================
+
+/** 基于现有消息列表重新发起流式请求（不新增用户消息） */
+function handleRetry() {
+  clearError()
+  sendMessageAfterEdit()
+}
+
+// ==================== 滚动管理 ====================
+
+const messagesContainer = ref<HTMLElement | null>(null)
+
+/** 是否贴在底部（距底 < 80px 视为贴底） */
+const stickToBottom = ref(true)
+
+function onScroll() {
+  const el = messagesContainer.value
+  if (!el) return
+  stickToBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+}
+
+/**
+ * 滚动到底部
+ * @param smooth 是否平滑滚动
+ */
+function scrollToBottom(smooth = false) {
+  stickToBottom.value = true
+  nextTick(() => {
+    const el = messagesContainer.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  })
+}
+
+// 新消息到达时，仅在贴底状态下跟随滚动（用户上翻阅读时不打扰）
+watch(() => messages.value.length, () => {
+  if (stickToBottom.value) scrollToBottom()
 })
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeyDown)
+// 流式内容增长时同理跟随
+watch(streamingPreview, () => {
+  if (stickToBottom.value) scrollToBottom()
 })
 
-const selectedPreset = ref(currentPreset.value)
+// 切换会话后强制滚到底部
+watch(activeSessionId, () => {
+  scrollToBottom()
+})
 
-/** 欢迎页使用的头像（预设头像 > 默认头像） */
-const welcomeAvatar = computed(() => currentPresetAvatar.value || '/images/头像.png')
+// ==================== 加载态与头像 ====================
 
-/** 欢迎页头像加载失败时回退 */
-function onWelcomeAvatarError(e: Event) {
+const loadingText = computed(() =>
+  currentPreset.value ? `${currentPreset.value} 正在思考...` : '雪年正在思考...'
+)
+
+const DEFAULT_AVATAR = '/images/头像.png'
+const streamAvatar = computed(() => currentPresetAvatar.value || DEFAULT_AVATAR)
+
+/** 头像加载失败时回退默认头像 */
+function onAvatarError(e: Event) {
   const img = e.target as HTMLImageElement
-  if (img && img.src !== '/images/头像.png') {
-    img.src = '/images/头像.png'
+  if (img && !img.src.endsWith(DEFAULT_AVATAR)) {
+    img.src = DEFAULT_AVATAR
   }
 }
-
-const quickPrompts = [
-  '你好呀，介绍一下你自己吧！',
-  '你平时喜欢画什么样的作品？',
-  '可以给我讲个故事吗？',
-  '有什么推荐的 furry 画师吗？'
-]
 
 // ==================== 免责声明弹窗 ====================
 
@@ -449,227 +396,7 @@ function acceptDisclaimer() {
   showDisclaimer.value = false
 }
 
-// ==================== 会话操作 ====================
-
-function handleCreateSession() {
-  createSession()
-  selectedPreset.value = ''
-  showSessions.value = false
-  scrollToBottom()
-}
-
-function handleSwitchSession(id: string) {
-  switchSession(id)
-  selectedPreset.value = currentPreset.value
-  showSessions.value = false
-  scrollToBottom()
-}
-
-function handleDeleteSession(id: string) {
-  if (sessions.value.length <= 1) return
-  if (confirm('确定要删除这个会话吗？')) {
-    deleteSession(id)
-    selectedPreset.value = currentPreset.value
-  }
-}
-
-function startRename(session: ChatSession) {
-  renamingSession.value = session
-  renameText.value = session.name
-}
-
-function confirmRename() {
-  if (renamingSession.value && renameText.value.trim()) {
-    renameSession(renamingSession.value.id, renameText.value.trim())
-  }
-  renamingSession.value = null
-}
-
-// ==================== 预设 ====================
-
-function onPresetChange() {
-  selectPreset(selectedPreset.value)
-}
-
-// ==================== 消息发送 ====================
-
-async function handleSend() {
-  const text = inputText.value.trim()
-  if (!text || isLoading.value) return
-  inputText.value = ''
-  await sendMessage(text)
-  scrollToBottom()
-}
-
-// ==================== 图片处理 ====================
-
-function triggerImageUpload() {
-  imageInputRef.value?.click()
-}
-
-async function handleImageUpload(e: Event) {
-  const input = e.target as HTMLInputElement
-  const files = input.files
-  if (!files) return
-  for (const file of files) {
-    const dataUrl = await fileToDataUrl(file)
-    if (dataUrl) addPendingImage(dataUrl)
-  }
-  input.value = ''
-}
-
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => resolve('')
-    reader.readAsDataURL(file)
-  })
-}
-
-function handlePaste(e: ClipboardEvent) {
-  if (!supportsVision.value) return
-  const items = e.clipboardData?.items
-  if (!items) return
-  for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      e.preventDefault()
-      const file = item.getAsFile()
-      if (file) {
-        fileToDataUrl(file).then(dataUrl => {
-          if (dataUrl) addPendingImage(dataUrl)
-        })
-      }
-    }
-  }
-}
-
-// ==================== 录音状态 ====================
-
-const isRecording = ref(false)
-const showAudioConfirm = ref(false)
-const audioBlobUrl = ref('')
-const audioPlayerRef = ref<HTMLAudioElement | null>(null)
-let mediaRecorder: MediaRecorder | null = null
-let audioChunks: Blob[] = []
-let recordingStartTime = 0
-
-const audioDuration = computed(() => {
-  if (!recordingStartTime) return '0 秒'
-  const seconds = Math.round((Date.now() - recordingStartTime) / 1000)
-  return `${seconds} 秒`
-})
-
-// ==================== 音频录制 ====================
-
-async function startRecording() {
-  if (isLoading.value || isRecording.value) return
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    audioChunks = []
-    recordingStartTime = Date.now()
-    mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4' })
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) audioChunks.push(e.data)
-    }
-    mediaRecorder.onstop = () => {
-      stream.getTracks().forEach(t => t.stop())
-      // 生成音频 blob 用于回放
-      const mimeType = mediaRecorder?.mimeType || 'audio/webm'
-      const blob = new Blob(audioChunks, { type: mimeType })
-      if (audioBlobUrl.value) URL.revokeObjectURL(audioBlobUrl.value)
-      audioBlobUrl.value = URL.createObjectURL(blob)
-      // 弹出确认窗口
-      showAudioConfirm.value = true
-      nextTick(() => {
-        audioPlayerRef.value?.load()
-      })
-    }
-    mediaRecorder.start()
-    isRecording.value = true
-  } catch (e) {
-    console.error('录音失败：', e)
-    alert('无法访问麦克风，请检查浏览器权限设置。')
-  }
-}
-
-function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop()
-  }
-  isRecording.value = false
-}
-
-/** 鼠标移出按钮时取消录音（不弹出确认框） */
-function cancelRecording() {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    // 停止但不触发 onstop 中的确认框
-    mediaRecorder.onstop = () => {
-      if (mediaRecorder) {
-        mediaRecorder.stream.getTracks().forEach(t => t.stop())
-      }
-    }
-    mediaRecorder.stop()
-  }
-  isRecording.value = false
-}
-
-/** 取消发送音频 */
-function cancelAudio() {
-  showAudioConfirm.value = false
-  if (audioBlobUrl.value) {
-    URL.revokeObjectURL(audioBlobUrl.value)
-    audioBlobUrl.value = ''
-  }
-  audioChunks = []
-}
-
-/** 发送音频 — 当前附加 [🎤 语音消息] 标记 */
-async function sendAudio() {
-  showAudioConfirm.value = false
-  const blobUrl = audioBlobUrl.value
-  if (blobUrl) {
-    inputText.value = (inputText.value + ' [🎤 语音消息]').trim()
-    URL.revokeObjectURL(blobUrl)
-    audioBlobUrl.value = ''
-  }
-  audioChunks = []
-}
-
-// ==================== 工具 ====================
-
-function handleClearMemory() {
-  if (confirm('确定要清除当前会话的所有聊天记录吗？此操作不可撤销。')) {
-    clearMemory()
-  }
-}
-
-function handleActivateSlidingWindow() {
-  if (confirm('启用滚动窗口模式后，AI 将只能看到最近 400 条消息，早期对话记忆会被遗忘。确定继续吗？')) {
-    activateSlidingWindow()
-  }
-}
-
-function scrollToBottom() {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
-  })
-}
-
-function formatDate(ts: number): string {
-  const d = new Date(ts)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
-  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
-}
-
-watch(() => messages.value.length, () => scrollToBottom())
-watch(currentPreset, (val) => { selectedPreset.value = val })
+// ==================== 生命周期 ====================
 
 onMounted(() => {
   loadPresets()
@@ -680,695 +407,364 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ---------- 聊天窗口 ---------- */
 .chat-window {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
   position: relative;
-}
-
-/* ---------- 会话侧栏 ---------- */
-.chat-sessions-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  background: rgba(0,0,0,0.3);
   display: flex;
-  justify-content: flex-start;
-}
-
-.chat-sessions-panel {
-  width: 280px;
+  flex-direction: column;
   height: 100%;
-  display: flex;
-  flex-direction: column;
-  border-radius: 0;
-  padding: 16px;
-  overflow-y: auto;
-}
-
-.sessions-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.sessions-header h3 { margin: 0; font-size: 1rem; }
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  color: var(--color-text-muted);
-  padding: 2px 6px;
-}
-
-.btn-full { width: 100%; margin-bottom: 12px; }
-
-.sessions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.session-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-  border: 1px solid transparent;
-}
-.session-item:hover { background: var(--color-bg-secondary); }
-.session-item.active {
-  background: var(--color-accent-bg);
-  border-color: var(--color-accent-light);
-}
-
-.session-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.session-name {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-}
-.session-meta {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
+  padding: 0;
 }
 
-.session-actions {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.btn-icon-sm {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.8rem;
-  padding: 2px 4px;
-  color: var(--color-text-muted);
-}
-.btn-icon-sm:hover { color: var(--color-text-primary); }
-.btn-danger-icon:hover { color: #DC2626; }
-
-/* ---------- 顶部工具栏 ---------- */
+/* 顶部工具栏 */
 .chat-toolbar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  flex-shrink: 0;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
+.toolbar-left,
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-xs);
+  min-width: 0;
 }
 
-.btn-sessions {
-  padding: 4px 10px;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  font-family: var(--font-sans);
-  white-space: nowrap;
-  max-width: 140px;
+.session-name-btn {
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: all var(--transition-fast);
-}
-.btn-sessions:hover { background: var(--color-accent-bg); border-color: var(--color-accent-light); }
-
-.btn-new-chat {
-  width: 28px;
-  height: 28px;
-  background: var(--color-accent);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  font-size: 1rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity var(--transition-fast);
-}
-.btn-new-chat:hover { opacity: 0.85; }
-
-.preset-selector {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--text-sm);
 }
 
 .preset-select {
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
-  font-size: 0.82rem;
-  font-family: var(--font-sans);
+  font-size: var(--text-xs);
   cursor: pointer;
-  outline: none;
-  max-width: 180px;
-  transition: border-color var(--transition-fast);
-}
-.preset-select:focus { border-color: var(--color-accent); }
-
-.memory-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  max-width: 140px;
 }
 
-.memory-indicator {
-  font-size: 0.72rem;
+/* 工具栏能力开关激活态（icon-btn 全局类无激活样式，在此补充） */
+.toolbar-right .icon-btn.active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+}
+
+/* 自定义提示词按钮与弹层 */
+.prompt-btn-wrap {
+  position: relative;
+}
+
+.prompt-popover {
+  position: absolute;
+  top: calc(100% + var(--space-xs));
+  right: 0;
+  width: 260px;
+  padding: var(--space-sm);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+}
+
+.prompt-popover-desc {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-xs);
   color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
-.token-indicator {
-  font-size: 0.72rem;
-  color: var(--color-primary);
-  white-space: nowrap;
-  cursor: help;
-  border-bottom: 1px dotted var(--color-primary);
-}
-
-.btn-memory {
-  padding: 3px 8px;
-  background: none;
+.prompt-popover-input {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  font-size: 0.72rem;
-  cursor: pointer;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--text-xs);
   font-family: var(--font-sans);
-  transition: all var(--transition-fast);
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
 }
-.btn-memory:hover { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
-html.dark .btn-memory:hover { background: #3B1111; border-color: #7F1D1D; }
 
-/* ---------- 消息列表 ---------- */
+.prompt-popover-input:focus {
+  border-color: var(--color-accent);
+}
+
+.prompt-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+/* 流式状态小指示（思考中 / 联网搜索） */
+.stream-status {
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--color-text-muted);
+  padding-left: var(--space-xs);
+}
+
+/* 消息上限横幅 */
+.limit-banner {
+  flex-shrink: 0;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+.limit-banner.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.limit-banner.info {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-dark);
+}
+
+.limit-banner.danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.limit-banner p {
+  margin: 0 0 var(--space-xs);
+}
+
+.limit-hint,
+.limit-note {
+  opacity: 0.85;
+}
+
+.limit-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin: var(--space-xs) 0;
+}
+
+/* 消息列表 */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: var(--space-md);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-sm);
 }
 
-.chat-welcome {
-  text-align: center;
-  padding: 40px 20px;
-}
-
-.about-avatar { border-radius: 50%; }
-
-.chat-welcome h3 {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin: 0 0 8px;
-}
-
-.chat-welcome p {
-  color: var(--color-text-secondary);
-  margin-bottom: 24px;
-  line-height: 1.7;
-}
-
-.welcome-prompts {
+/* 流式预览气泡（与 AI 气泡同风格） */
+.stream-preview {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  animation: fade-in var(--transition-base) both;
 }
 
-.prompt-btn {
-  padding: 8px 16px;
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-secondary);
+.stream-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid var(--color-accent-bg);
+}
+
+.stream-bubble {
+  max-width: 75%;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-family: var(--font-sans);
-  transition: all var(--transition-fast);
+  border-radius: var(--radius-lg);
+  border-top-left-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  word-break: break-word;
+  white-space: pre-wrap;
 }
-.prompt-btn:hover { background: var(--color-accent-bg); color: var(--color-accent); border-color: var(--color-accent-light); }
 
+.stream-cursor {
+  color: var(--color-accent);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* 思考中指示器（三点脉冲，复用全局 pulse-dot 关键帧） */
 .chat-loading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
 }
 
-.typing-indicator { display: flex; gap: 4px; }
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+}
+
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   background: var(--color-accent);
-  animation: typingBounce 1.4s ease-in-out infinite;
-}
-.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typingBounce {
-  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-  30% { opacity: 1; transform: translateY(-6px); }
+  animation: pulse-dot 1.2s ease-in-out infinite;
 }
 
-.loading-text { font-size: 0.9rem; color: var(--color-text-muted); }
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
 
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.loading-text {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* 错误提示 */
 .chat-error {
-  text-align: center;
-  padding: 12px;
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-  border-radius: var(--radius-sm);
-  color: #DC2626;
-  font-size: 0.9rem;
-}
-html.dark .chat-error { background: #3B1111; border-color: #7F1D1D; }
-.chat-error p { margin: 0 0 8px; }
-
-/* ---------- 消息数量警告 / 上限 ---------- */
-.chat-limit-warning {
-  text-align: center;
-  padding: 10px 16px;
-  margin: 0 16px 4px;
-  background: #FFFBEB;
-  border: 1px solid #FDE68A;
-  border-radius: var(--radius-sm);
-  color: #92400E;
-  font-size: 0.82rem;
-}
-html.dark .chat-limit-warning { background: #292312; border-color: #78350F; color: #FCD34D; }
-
-.chat-limit-reached {
-  text-align: center;
-  padding: 16px;
-  margin: 8px 16px;
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-  border-radius: var(--radius-sm);
-  color: #DC2626;
-  font-size: 0.9rem;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-}
-html.dark .chat-limit-reached { background: #3B1111; border-color: #7F1D1D; }
-.chat-limit-reached .btn-sm {
-  padding: 6px 16px;
-  font-size: 0.82rem;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--color-danger-bg);
+  border-radius: var(--radius-md);
+  animation: fade-in-up var(--transition-base) both;
 }
 
-.chat-limit-reached .chat-limit-hint {
+.error-text {
   margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-danger);
 }
 
-.chat-limit-reached .chat-limit-actions {
+.error-actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: var(--space-sm);
 }
 
-.chat-limit-reached .chat-limit-note {
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-/* 滚动窗口模式提示 */
-.chat-limit-info {
-  text-align: center;
-  padding: 10px 16px;
-  margin: 0 16px 4px;
-  background: #EFF6FF;
-  border: 1px solid #BFDBFE;
-  border-radius: var(--radius-sm);
-  color: #1E40AF;
-  font-size: 0.82rem;
-}
-html.dark .chat-limit-info { background: #1E293B; border-color: #334155; color: #93C5FD; }
-
-/* ---------- 待发送图片 ---------- */
-.pending-images {
-  display: flex;
-  gap: 8px;
-  padding: 8px 16px;
-  overflow-x: auto;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-}
-
-.pending-img-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.pending-img {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-}
-
-.pending-img-remove {
+/* 回到底部悬浮按钮 */
+.back-to-bottom {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #DC2626;
-  color: #fff;
-  border: none;
-  font-size: 0.7rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* ---------- 输入区域 ---------- */
-.chat-input-area {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-}
-
-.btn-input-action {
+  right: var(--space-md);
+  bottom: 96px;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
   background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: var(--text-base);
   cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  box-shadow: var(--shadow-md);
   transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-.btn-input-action:hover { background: var(--color-accent-bg); border-color: var(--color-accent-light); }
-.btn-input-action.recording {
-  background: #DC2626;
-  color: #fff;
-  border-color: #DC2626;
-  animation: pulse 1.5s ease-in-out infinite;
+  z-index: 1;
 }
 
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+.back-to-bottom:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
-.chat-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-size: 0.9rem;
-  font-family: var(--font-sans);
-  resize: none;
-  outline: none;
-  transition: border-color var(--transition-fast);
-}
-.chat-input:focus { border-color: var(--color-accent); }
-.chat-input:disabled { opacity: 0.6; cursor: not-allowed; }
-
-.chat-send-btn {
-  flex-shrink: 0;
-  padding: 8px 16px;
-  height: 38px;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--transition-base);
 }
 
-.sending-dot { letter-spacing: 2px; }
-
-.file-input-hidden { display: none; }
-
-/* 模态框 */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal { padding: 24px; max-width: 400px; width: 90%; }
-.modal-sm { max-width: 360px; }
-.modal h3 { margin: 0 0 12px; font-size: 1.1rem; }
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-
-.form-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-size: 0.9rem;
-  font-family: var(--font-sans);
-  outline: none;
-}
-.form-input:focus { border-color: var(--color-accent); }
-
-/* 音频确认弹窗 */
-.audio-confirm-modal {
-  max-width: 380px;
-  text-align: center;
-}
-
-.audio-duration {
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin: 0 0 12px;
-}
-
-.audio-player {
-  width: 100%;
-  margin-bottom: 8px;
-  border-radius: var(--radius-sm);
-}
-
-.audio-player:focus {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* 免责声明弹窗 */
-.disclaimer-modal {
-  max-width: 440px;
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-mask);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-md);
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-lg);
+  animation: fade-in-up var(--transition-base) both;
+}
+
+.modal-title {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
 }
 
 .disclaimer-body {
-  font-size: 0.9rem;
-  line-height: 1.7;
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
+  line-height: 1.7;
+  margin-bottom: var(--space-md);
 }
 
 .disclaimer-body p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-sm);
 }
 
 .disclaimer-body ul {
   margin: 0;
-  padding-left: 20px;
-}
-
-.disclaimer-body li {
-  margin-bottom: 4px;
+  padding-left: var(--space-lg);
 }
 
 .disclaimer-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 16px;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.disclaimer-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-accent);
-  cursor: pointer;
-}
-
-/* ---------- 调试面板 ---------- */
-.debug-overlay {
-  z-index: 1000;
-}
-
-.debug-panel {
-  max-width: 800px;
-  max-height: 85vh;
-  width: 95%;
-  overflow-y: auto;
-  padding: 0;
-}
-
-.debug-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
-  position: sticky;
-  top: 0;
-  background: var(--color-bg-primary);
-  z-index: 1;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-.debug-header h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.debug-header-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.debug-preset-badge {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  background: var(--color-bg-tertiary);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
-.debug-body {
-  padding: 16px 20px 20px;
-}
-
-.debug-load-hint {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.debug-hint-text {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.debug-section {
-  margin-bottom: 16px;
-}
-
-.debug-section h4 {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
+  cursor: pointer;
+  margin-bottom: var(--space-md);
 }
 
-.debug-code-block {
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 12px;
-  max-height: 300px;
-  overflow: auto;
-}
-
-.debug-code-block pre {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--color-text-primary);
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-}
-
-.debug-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-}
-
-.debug-stat-item {
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-md);
-  padding: 10px 14px;
+.modal-actions {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  justify-content: flex-end;
+  gap: var(--space-sm);
 }
 
-.debug-stat-label {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.debug-stat-value {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-/* ---------- 响应式 ---------- */
 @media (max-width: 640px) {
-  .chat-toolbar { padding: 8px 10px; }
-  .chat-sessions-panel { width: 100%; }
-  .preset-select { max-width: 120px; }
-  .chat-messages { padding: 12px; }
-  .chat-input-area { padding: 12px; gap: 8px; }
-  .chat-send-btn { padding: 8px 16px; font-size: 0.85rem; }
+  .chat-messages {
+    padding: var(--space-sm);
+  }
+
+  .session-name-btn {
+    max-width: 120px;
+  }
+
+  .preset-select {
+    max-width: 110px;
+  }
 }
 </style>

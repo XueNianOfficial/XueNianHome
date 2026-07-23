@@ -45,6 +45,10 @@ server {
     listen 443 ssl http2;
     server_name xuenian.hellofurry.cn;
 
+    # 上传文件大小限制（nginx 默认 1M，此处放宽到 50M，
+    # 与 Nitro 的 maxRequestBodySize: '50mb'（nuxt.config.ts）保持一致）
+    client_max_body_size 50m;
+
     # ============================================================
     #  阻止开发工具端点（双重保障）
     # ============================================================

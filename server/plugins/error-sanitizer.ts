@@ -38,6 +38,6 @@ export default defineNitroPlugin((nitroApp) => {
     }
 
     // 记录原始错误到服务端日志（仅保留 message，不记录堆栈以保护日志安全）
-    console.error('[Security]', new Date().toISOString(), '-', error.message || 'Unknown error')
+    console.error('[Security]', new Date().toISOString(), '-', error.message || '未知错误')
   })
 })

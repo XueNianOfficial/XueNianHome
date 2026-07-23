@@ -90,6 +90,10 @@ export interface ChatMessage {
   edited?: boolean
   /** 本条消息消耗的 token（仅 AI 回复消息有效） */
   tokenUsage?: TokenUsage
+  /** 深度思考过程（仅 AI 回复消息有效，纯文本，渲染时需转义） */
+  reasoning?: string
+  /** 本条回复是否经过联网搜索（仅 AI 回复消息有效） */
+  searched?: boolean
 }
 
 /** Token 用量统计 */
@@ -118,6 +122,12 @@ export interface ChatSession {
   lastActiveAt: number
   /** 是否启用滚动窗口模式（超过消息上限后裁剪旧消息继续对话） */
   slidingWindow?: boolean
+  /** 本会话是否开启深度思考（需预设支持，发送时随请求携带） */
+  enableThinking?: boolean
+  /** 本会话是否开启联网搜索（需预设支持） */
+  enableSearch?: boolean
+  /** 本会话的自定义系统提示词（需预设允许，服务端二次校验） */
+  customSystemPrompt?: string
 }
 
 /** 聊天状态 */
@@ -140,37 +150,48 @@ export interface ChatPreset {
   supportsVision?: boolean
   /** 是否支持音频输入 */
   supportsAudio?: boolean
-  /** 是否启用实验功能：AI 自主管理对话和表情包 */
-  enableExperimental?: boolean
+  /** 是否支持深度思考 */
+  supportsThinking?: boolean
+  /** 是否支持联网搜索 */
+  supportsWebSearch?: boolean
+  /** 是否允许用户自定义系统提示词 */
+  allowCustomSystemPrompt?: boolean
   /** 预设头像 URL（可选，为空则使用默认头像） */
   avatar?: string
 }
 
-/** 预设列表响应 */
+/** 提示词模板（聊天欢迎页快捷短语，由 /api/presets 下发） */
+export interface PromptTemplate {
+  /** 唯一标识 */
+  id: string
+  /** 模板标题（按钮上显示的短文案） */
+  title: string
+  /** 模板内容（点击后发送的完整提示词） */
+  prompt: string
+}
+
+/** 预设列表响应（对应 GET /api/presets 的返回结构） */
 export interface PresetsResponse {
   success: boolean
   data?: {
     presets: ChatPreset[]
     defaultModel: string
+    /** 默认配置是否支持视觉（未选中预设时的兜底能力标记） */
     defaultSupportsVision?: boolean
+    /** 默认配置是否支持音频输入 */
     defaultSupportsAudio?: boolean
-    defaultEnableExperimental?: boolean
-    defaultPreset?: string
+    /** 默认配置是否支持深度思考 */
+    defaultSupportsThinking?: boolean
+    /** 默认配置是否支持联网搜索 */
+    defaultSupportsWebSearch?: boolean
+    /** 默认配置是否允许用户自定义系统提示词 */
+    defaultAllowCustomSystemPrompt?: boolean
+    /** AI 画图是否已配置（仅布尔标记，驱动画图入口显示） */
+    imageGenEnabled?: boolean
+    /** 提示词模板列表（聊天欢迎页快捷短语） */
+    promptTemplates?: PromptTemplate[]
   }
   error?: string
-}
-
-// ---------- 实验功能：气泡结构 ----------
-
-/** 气泡类型 */
-export type BubbleType = 'text' | 'gif'
-
-/** 单条气泡（实验功能） */
-export interface ChatBubble {
-  /** 气泡类型：文本或表情包 */
-  type: BubbleType
-  /** 气泡内容：文本内容或表情包文件名（如 害羞.gif） */
-  content: string
 }
 
 // ---------- 主题相关类型 ----------

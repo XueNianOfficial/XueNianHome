@@ -51,6 +51,13 @@ export default defineNuxtConfig({
     // 格式: '[{"name":"OpenAI","apiKey":"sk-...","baseUrl":"https://api.openai.com/v1","model":"gpt-4"},...]'
     aiPresets: '',
 
+    // AI 画图配置（火山方舟 images/generations，仅服务端）
+    // 环境变量名：NUXT_IMAGE_API_KEY, NUXT_IMAGE_API_BASE_URL, NUXT_IMAGE_MODEL
+    // 模型 ID 带日期后缀，随 seedream 版本滚动，以方舟控制台模型列表为准
+    imageApiKey: '',
+    imageApiBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    imageModel: 'doubao-seedream-5-0-lite-260128',
+
     // 管理后台密码（仅服务端，环境变量 NUXT_ADMIN_PASSWORD）
     adminPassword: 'admin123',
 
@@ -90,6 +97,8 @@ export default defineNuxtConfig({
     // 预设：本地 Node.js 服务
     preset: 'node-server',
 
+    // 请求体大小限制（上传图片等，与 Nginx client_max_body_size 保持一致）
+    maxRequestBodySize: '50mb',
 
     // 路由规则：阻止 IPX 远程 URL 代理（SSRF 双重防护，配合中间件）
     routeRules: {

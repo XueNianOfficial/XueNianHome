@@ -1,7 +1,11 @@
 /**
- * POST /api/admin/gallery/upload
- * 上传图片到 public/images/
- * 支持 multipart/form-data 上传
+ * ============================================================
+ *  POST /api/admin/gallery/upload
+ *  上传图片到 public/images/（multipart/form-data）
+ *  安全：requireAuth 鉴权 + csrfProtection 校验；
+ *        扩展名白名单 + 单文件 50MB 上限；
+ *        文件名经字符过滤重新净化（去除路径分隔符等特殊字符）
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { getPublicImagesDir } from '../../../utils/image-dir'
@@ -9,11 +13,14 @@ import { writeFile } from 'node:fs/promises'
 import { mkdirSync, existsSync } from 'node:fs'
 import { join, extname } from 'node:path'
 
+/** 允许的图片扩展名白名单 */
 const ALLOWED_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']
-const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+/** 单文件最大 50MB（与 Nitro maxRequestBodySize 对齐） */
+const MAX_SIZE = 50 * 1024 * 1024
 
 export default defineEventHandler(async (event) => {
   requireAuth(event)
+  csrfProtection(event)
 
   const imgDir = getPublicImagesDir()
   if (!existsSync(imgDir)) mkdirSync(imgDir, { recursive: true })
@@ -40,7 +47,7 @@ export default defineEventHandler(async (event) => {
     if (part.data.length > MAX_SIZE) {
       throw createError({
         statusCode: 400,
-        message: `文件过大: ${part.filename}，最大 10MB`
+        message: `文件过大: ${part.filename}，最大 50MB`
       })
     }
 

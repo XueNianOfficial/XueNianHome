@@ -1,139 +1,181 @@
 <!--
 ============================================================
   管理后台 - 图片管理组件
-  浏览、上传、删除 public/images/ 下的图片
+  浏览、上传、编辑元数据、删除 public/images/ 下的图片
+  - 上传区域：虚线点击上传卡片（含格式提示与上传中状态）
+  - 图片网格：悬停显示操作（复制路径/编辑信息/删除）
+  - 删除经 AdminConfirm 二次确认，操作结果统一 Toast 反馈
 ============================================================
 -->
 <template>
   <div class="admin-gallery">
     <!-- 操作栏 -->
     <div class="section-actions">
-      <h3>图片列表（{{ images.length }} 张）</h3>
-      <div class="upload-area">
-        <input
-          ref="fileInput"
-          type="file"
-          multiple
-          accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
-          class="file-input-hidden"
-          @change="handleFilesSelected"
-        />
-        <button class="btn-primary btn-sm" :disabled="uploading" @click="triggerUpload">
-          {{ uploading ? '上传中...' : '+ 上传图片' }}
-        </button>
-      </div>
+      <h3 class="section-title-sm">
+        图片列表 <span class="badge">{{ images.length }} 张</span>
+      </h3>
     </div>
 
-    <!-- 上传状态 -->
-    <div v-if="uploadMsg" class="upload-msg" :class="uploadOk ? 'upload-ok' : 'upload-err'">
-      {{ uploadMsg }}
+    <!-- 上传区域（点击选择文件，样式为拖拽区提示） -->
+    <div
+      class="upload-zone card"
+      :class="{ 'upload-zone--busy': uploading }"
+      role="button"
+      tabindex="0"
+      @click="triggerUpload"
+      @keydown.enter="triggerUpload"
+    >
+      <input
+        ref="fileInput"
+        type="file"
+        multiple
+        accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+        class="file-input-hidden"
+        @change="handleFilesSelected"
+      />
+      <template v-if="uploading">
+        <span class="spinner"></span>
+        <p class="upload-zone-text">上传中…</p>
+      </template>
+      <template v-else>
+        <span class="upload-zone-icon">🖼️</span>
+        <p class="upload-zone-text">点击选择图片上传</p>
+        <p class="upload-zone-hint">支持 PNG / JPG / GIF / WebP / SVG，可多选</p>
+      </template>
+    </div>
+
+    <!-- 加载中：骨架屏网格 -->
+    <div v-if="loading" class="gallery-grid">
+      <div v-for="i in 6" :key="i" class="skeleton gallery-skeleton"></div>
+    </div>
+
+    <!-- 空列表 -->
+    <div v-else-if="images.length === 0" class="empty-state card">
+      <span class="empty-state-icon">🖼️</span>
+      <p>暂无图片，点击上方区域上传第一张吧</p>
     </div>
 
     <!-- 图片网格 -->
-    <div v-if="loading" class="loading-text">加载中...</div>
     <div v-else class="gallery-grid">
       <div v-for="img in images" :key="img.filename" class="gallery-item card">
         <div class="gallery-img-wrap">
-          <img :src="img.path" :alt="img.filename" loading="lazy" />
+          <img :src="img.path" :alt="img.title || img.filename" loading="lazy" />
+          <!-- 悬停操作层（触屏设备常显） -->
+          <div class="gallery-hover-actions">
+            <button
+              type="button"
+              class="icon-btn gallery-action-btn"
+              title="复制路径"
+              @click.stop="copyPath(img.path)"
+            >📋</button>
+            <button
+              type="button"
+              class="icon-btn gallery-action-btn"
+              title="编辑信息"
+              @click.stop="openEdit(img)"
+            >✏️</button>
+            <button
+              type="button"
+              class="icon-btn gallery-action-btn gallery-action-btn--danger"
+              title="删除"
+              @click.stop="handleDelete(img)"
+            >🗑️</button>
+          </div>
         </div>
         <div class="gallery-info">
           <p class="gallery-name" :title="img.title || img.filename">{{ img.title || img.filename }}</p>
           <p class="gallery-meta">
             <span class="gallery-size">{{ img.sizeFormatted }}</span>
-            <span v-if="img.category && img.category !== 'other'" class="gallery-category">{{ categoryLabel(img.category) }}</span>
+            <span v-if="img.category && img.category !== 'other'" class="badge">{{ categoryLabel(img.category) }}</span>
           </p>
         </div>
-        <div class="gallery-actions">
-          <button
-            class="btn-copy"
-            :title="'复制路径'"
-            @click="copyPath(img.path)"
-          >📋</button>
-          <button
-            class="btn-edit-icon"
-            title="编辑信息"
-            @click="openEdit(img)"
-          >✏️</button>
-          <button
-            class="btn-delete-icon"
-            title="删除"
-            @click="handleDelete(img)"
-          >🗑️</button>
-        </div>
-      </div>
-
-      <div v-if="images.length === 0" class="empty-state">
-        <p>暂无图片</p>
       </div>
     </div>
 
-    <!-- 编辑弹窗 -->
-    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+    <!-- 编辑元数据弹窗 -->
+    <div v-if="showEditModal" class="modal-overlay" @click.self="closeEdit">
       <div class="modal card modal-sm">
-        <h3>编辑图片信息</h3>
-        <div class="edit-preview" v-if="editTarget">
+        <div class="modal-header">
+          <h3 class="modal-title">编辑图片信息</h3>
+          <button type="button" class="icon-btn" title="关闭" @click="closeEdit">✕</button>
+        </div>
+
+        <div v-if="editTarget" class="edit-preview">
           <img :src="editTarget.path" :alt="editTarget.filename" />
         </div>
+
         <div class="form-group">
-          <label class="form-label">文件名</label>
-          <input class="form-input" :value="editTarget?.filename" disabled />
+          <label class="field-label" for="gallery-filename">文件名</label>
+          <input id="gallery-filename" class="input" :value="editTarget?.filename" disabled />
+          <p class="field-hint">文件名不可修改</p>
         </div>
+
         <div class="form-group">
-          <label class="form-label">标题</label>
+          <label class="field-label" for="gallery-title">标题</label>
           <input
-            class="form-input"
+            id="gallery-title"
             v-model="editForm.title"
+            class="input"
             placeholder="输入图片标题"
           />
         </div>
+
         <div class="form-group">
-          <label class="form-label">描述</label>
+          <label class="field-label" for="gallery-desc">描述</label>
           <textarea
-            class="form-input form-textarea"
+            id="gallery-desc"
             v-model="editForm.description"
+            class="input edit-textarea"
             placeholder="输入图片描述（可选）"
             rows="3"
           ></textarea>
         </div>
+
         <div class="form-group">
-          <label class="form-label">分类</label>
-          <select class="form-input" v-model="editForm.category">
+          <label class="field-label" for="gallery-category">分类</label>
+          <select id="gallery-category" v-model="editForm.category" class="input">
             <option value="illustration">插画</option>
             <option value="avatar">头像</option>
             <option value="logo">Logo</option>
             <option value="other">其他</option>
           </select>
         </div>
+
         <div class="modal-actions">
-          <button class="btn-outline" @click="showEditModal = false">取消</button>
-          <button class="btn-primary btn-sm" :disabled="saving" @click="confirmEdit">
-            {{ saving ? '保存中...' : '保存' }}
+          <button type="button" class="btn-ghost" :disabled="saving" @click="closeEdit">取消</button>
+          <button type="button" class="btn-primary" :disabled="saving" @click="confirmEdit">
+            {{ saving ? '保存中…' : '保存' }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 删除确认 -->
-    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
-      <div class="modal card modal-sm">
-        <h3>确认删除</h3>
-        <p>确定要删除「{{ deleteTarget?.filename }}」吗？</p>
-        <div class="modal-actions">
-          <button class="btn-outline" @click="showDeleteConfirm = false">取消</button>
-          <button class="btn-danger" :disabled="deleting" @click="confirmDelete">
-            {{ deleting ? '删除中...' : '确认删除' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 删除确认（二次确认弹窗） -->
+    <AdminConfirm
+      :show="showDeleteConfirm"
+      title="删除图片"
+      :description="`确定要删除「${deleteTarget?.filename}」吗？此操作不可撤销。`"
+      confirm-text="确认删除"
+      loading-text="删除中…"
+      :loading="deleting"
+      @confirm="confirmDelete"
+      @cancel="showDeleteConfirm = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 /**
  * AdminGallery - 图片管理组件
- * 浏览、上传、删除 public/images/ 下的图片
+ *
+ * 接口契约：
+ *   GET  /api/admin/gallery/list            → { success, data: AdminGalleryImage[] }
+ *   POST /api/admin/gallery/upload          FormData（字段名 images，可多文件）→ { success, message }
+ *   POST /api/admin/gallery/update          { filename, title, description, category }
+ *   POST /api/admin/gallery/delete          { filename }
+ * 图片类型/大小校验由服务端执行，失败时直接展示服务端返回的中文 message
  */
+import AdminConfirm from './AdminConfirm.vue'
 
 /** 管理后台图片条目（文件系统信息 + 元数据） */
 interface AdminGalleryImage {
@@ -154,14 +196,14 @@ interface EditForm {
   category: string
 }
 
+const { success, error } = useToast()
+
 const images = ref<AdminGalleryImage[]>([])
 const loading = ref(true)
 
 // 上传
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
-const uploadMsg = ref('')
-const uploadOk = ref(true)
 
 // 编辑
 const showEditModal = ref(false)
@@ -181,7 +223,7 @@ async function loadImages() {
     const res = await $fetch<{ success: boolean; data: AdminGalleryImage[] }>('/api/admin/gallery/list')
     images.value = res.data || []
   } catch (e: any) {
-    console.error('加载图片失败：', e)
+    error(e?.data?.message || '加载图片列表失败')
   }
   loading.value = false
 }
@@ -195,7 +237,13 @@ function openEdit(img: AdminGalleryImage) {
   showEditModal.value = true
 }
 
-/** 保存编辑 */
+/** 关闭编辑弹窗 */
+function closeEdit() {
+  if (saving.value) return
+  showEditModal.value = false
+}
+
+/** 保存元数据编辑 */
 async function confirmEdit() {
   if (!editTarget.value) return
   saving.value = true
@@ -210,15 +258,17 @@ async function confirmEdit() {
       }
     })
     showEditModal.value = false
+    success('保存成功')
     await loadImages()
   } catch (e: any) {
-    console.error('保存失败：', e)
+    error(e?.data?.message || '保存失败')
   }
   saving.value = false
 }
 
-/** 触发文件选择 */
+/** 触发文件选择（上传中禁止重复触发） */
 function triggerUpload() {
+  if (uploading.value) return
   fileInput.value?.click()
 }
 
@@ -229,8 +279,6 @@ async function handleFilesSelected(e: Event) {
   if (!files || files.length === 0) return
 
   uploading.value = true
-  uploadMsg.value = ''
-  uploadOk.value = true
 
   const formData = new FormData()
   for (const file of files) {
@@ -242,34 +290,38 @@ async function handleFilesSelected(e: Event) {
       method: 'POST',
       body: formData
     })
-    uploadMsg.value = res.message || '上传成功'
-    uploadOk.value = true
+    success(res.message || '上传成功')
     await loadImages()
-  } catch (e: any) {
-    uploadMsg.value = e?.data?.message || '上传失败'
-    uploadOk.value = false
+  } catch (err: any) {
+    error(err?.data?.message || '上传失败')
   }
 
   uploading.value = false
   input.value = '' // 清空以允许重复上传同一文件
 }
 
-/** 复制路径 */
+/** 复制图片路径到剪贴板 */
 async function copyPath(path: string) {
   try {
     await navigator.clipboard.writeText(path)
+    success('路径已复制')
   } catch {
-    // fallback
-    const ta = document.createElement('textarea')
-    ta.value = path
-    document.body.appendChild(ta)
-    ta.select()
-    document.execCommand('copy')
-    document.body.removeChild(ta)
+    // 剪贴板 API 不可用时的降级方案
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = path
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+      success('路径已复制')
+    } catch {
+      error('复制失败，请手动复制')
+    }
   }
 }
 
-/** 确认删除 */
+/** 打开删除确认弹窗 */
 function handleDelete(img: AdminGalleryImage) {
   deleteTarget.value = img
   showDeleteConfirm.value = true
@@ -285,9 +337,10 @@ async function confirmDelete() {
       body: { filename: deleteTarget.value.filename }
     })
     showDeleteConfirm.value = false
+    success('删除成功')
     await loadImages()
   } catch (e: any) {
-    console.error('删除失败：', e)
+    error(e?.data?.message || '删除失败')
   }
   deleting.value = false
 }
@@ -309,40 +362,92 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ---------- 操作栏 ---------- */
 .section-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
-.section-actions h3 { margin: 0; font-size: 1.1rem; }
 
-.file-input-hidden { display: none; }
-
-.upload-msg {
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  margin-bottom: 12px;
+.section-title-sm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-lg);
 }
-.upload-ok { background: #ECFDF5; color: #065F46; }
-.upload-err { background: #FEF2F2; color: #DC2626; }
-html.dark .upload-ok { background: #064E3B; color: #A7F3D0; }
-html.dark .upload-err { background: #3B1111; color: #FCA5A5; }
 
+/* ---------- 上传区域 ---------- */
+.upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: center;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.upload-zone:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-bg);
+}
+
+.upload-zone--busy {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.upload-zone-icon {
+  font-size: 2rem;
+  opacity: 0.7;
+}
+
+.upload-zone-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.upload-zone-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+/* ---------- 图片网格 ---------- */
 .gallery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
+}
+
+.gallery-skeleton {
+  aspect-ratio: 1;
 }
 
 .gallery-item {
-  padding: 8px;
+  padding: var(--space-2);
   display: flex;
   flex-direction: column;
 }
 
 .gallery-img-wrap {
+  position: relative;
   aspect-ratio: 1;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -358,13 +463,55 @@ html.dark .upload-err { background: #3B1111; color: #FCA5A5; }
   object-fit: contain;
 }
 
+/* 悬停操作层：默认隐藏，悬停/聚焦时淡入 */
+.gallery-hover-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--color-bg-mask);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.gallery-item:hover .gallery-hover-actions,
+.gallery-item:focus-within .gallery-hover-actions {
+  opacity: 1;
+}
+
+.gallery-action-btn {
+  background: var(--color-bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.gallery-action-btn:hover {
+  background: var(--color-bg-secondary);
+  transform: scale(1.08);
+}
+
+.gallery-action-btn--danger:hover {
+  background: var(--color-danger-bg);
+}
+
+/* 触屏设备无悬停，操作按钮常显 */
+@media (hover: none) {
+  .gallery-hover-actions {
+    opacity: 1;
+    background: none;
+    inset: auto var(--space-1) var(--space-1) auto;
+    gap: var(--space-1);
+  }
+}
+
 .gallery-info {
-  padding: 6px 4px 0;
+  padding: var(--space-2) var(--space-1) 0;
   flex: 1;
 }
 
 .gallery-name {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--color-text-primary);
   margin: 0;
   overflow: hidden;
@@ -372,121 +519,94 @@ html.dark .upload-err { background: #3B1111; color: #FCA5A5; }
   white-space: nowrap;
 }
 
-.gallery-size {
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
-  margin: 2px 0 0;
-}
-
 .gallery-meta {
   display: flex;
-  gap: 6px;
+  gap: var(--space-2);
   align-items: center;
-  margin: 2px 0 0;
+  margin: var(--space-1) 0 0;
 }
 
-.gallery-category {
-  font-size: 0.65rem;
-  color: var(--color-primary);
-  background: var(--color-bg-hover);
-  padding: 1px 6px;
-  border-radius: 3px;
+.gallery-size {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
 }
 
-.gallery-actions {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-  padding: 0 4px;
-}
-
-.btn-copy, .btn-edit-icon, .btn-delete-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background var(--transition-fast);
-}
-.btn-copy:hover { background: var(--color-bg-hover); }
-.btn-edit-icon:hover { background: #DBEAFE; }
-.btn-delete-icon:hover { background: #FEE2E2; }
-
-.empty-state { text-align: center; padding: 40px; color: var(--color-text-muted); }
-.loading-text { text-align: center; padding: 20px; color: var(--color-text-muted); }
-
-/* 弹窗 */
+/* ---------- 弹窗 ---------- */
 .modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 40px; z-index: 100;
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-mask);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+  z-index: var(--z-modal);
+  overflow-y: auto;
+  animation: modal-fade-in var(--transition-fast);
 }
-.modal { width: 720px; max-width: 95vw; padding: 24px; }
-.modal-sm { width: 400px; }
-.modal h3 { margin: 0 0 16px; font-size: 1.15rem; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
-.btn-sm { padding: 4px 14px; font-size: 0.8rem; }
-.btn-danger {
-  padding: 4px 14px; font-size: 0.8rem;
-  background: #DC2626; color: #fff; border: none;
-  border-radius: var(--radius-sm); cursor: pointer;
+.modal {
+  width: 720px;
+  max-width: 95vw;
+  padding: var(--space-6);
+  margin-bottom: var(--space-8);
 }
-.btn-danger:hover { opacity: 0.85; }
-.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* 编辑弹窗 */
+.modal-sm {
+  width: 440px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+/* 编辑弹窗图片预览 */
 .edit-preview {
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-bg-tertiary);
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
 .edit-preview img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
 }
 
+/* ---------- 表单 ---------- */
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-4);
 }
-.form-label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-bottom: 4px;
-}
-.form-input {
-  width: 100%;
-  padding: 8px 10px;
-  font-size: 0.9rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  outline: none;
-  transition: border-color var(--transition-fast);
-  box-sizing: border-box;
-}
-.form-input:focus {
-  border-color: var(--color-primary);
-}
-.form-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.form-textarea {
+
+.edit-textarea {
   resize: vertical;
   min-height: 60px;
-  font-family: inherit;
+}
+
+/* ---------- 动画 ---------- */
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

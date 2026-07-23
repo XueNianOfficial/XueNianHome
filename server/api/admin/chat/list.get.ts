@@ -1,6 +1,8 @@
 /**
- * GET /api/admin/chat/list
- * 管理员获取所有用户聊天概览（需登录）
+ * ============================================================
+ *  聊天管理概览 API - GET /api/admin/chat/list（需管理员登录）
+ *  返回所有用户聊天概览与存储占用统计
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { listAllUserChats, getChatStorageSize } from '../../../utils/chat-storage'

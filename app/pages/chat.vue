@@ -35,14 +35,27 @@ useHead({
 /* ---------- 页面标题 ---------- */
 .page-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-xl);
 }
 
 /* ---------- 聊天窗口容器 ---------- */
 .chat-wrapper {
-  max-width: 720px;
+  max-width: 768px;
   margin: 0 auto;
   height: calc(100vh - 280px);
   min-height: 500px;
+}
+
+/* 移动端：标题区收窄，聊天窗口占满剩余可视高度 */
+@media (max-width: 640px) {
+  .page-header {
+    margin-bottom: var(--space-md);
+  }
+
+  .chat-wrapper {
+    /* 100dvh 适配移动端动态工具栏；减去导航栏、标题区与页面留白 */
+    height: calc(100dvh - var(--header-height) - 190px);
+    min-height: 380px;
+  }
 }
 </style>

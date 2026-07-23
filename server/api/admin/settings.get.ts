@@ -1,6 +1,8 @@
 /**
- * GET /api/admin/settings
- * 获取当前 AI 设置（不含敏感信息掩码）
+ * ============================================================
+ *  AI 设置查询 API - GET /api/admin/settings（需管理员登录）
+ *  返回当前生效的 AI 配置，API Key 经掩码处理（只显示后 4 位）
+ * ============================================================
  */
 import { requireAuth } from '../../utils/admin-auth'
 import { getEffectiveSettings, loadSettings } from '../../utils/settings'
@@ -26,13 +28,26 @@ export default defineEventHandler(async (event) => {
       systemPrompt: settings.systemPrompt || '',
       supportsVision: settings.supportsVision || false,
       supportsAudio: settings.supportsAudio || false,
-      enableExperimental: settings.enableExperimental || false,
-      defaultPreset: settings.defaultPreset || '',
+      supportsThinking: settings.supportsThinking || false,
+      supportsWebSearch: settings.supportsWebSearch || false,
+      allowCustomSystemPrompt: settings.allowCustomSystemPrompt || false,
+      // AI 画图配置（密钥同样掩码处理）
+      imageGen: {
+        apiKey: maskKey(settings.imageGen?.apiKey || ''),
+        baseUrl: settings.imageGen?.baseUrl || '',
+        model: settings.imageGen?.model || '',
+        size: settings.imageGen?.size || '2K',
+        watermark: settings.imageGen?.watermark ?? false
+      },
+      promptTemplates: settings.promptTemplates || [],
       presets: settings.presets.map(p => ({
         ...p,
         apiKey: maskKey(p.apiKey),
         supportsVision: p.supportsVision || false,
-        supportsAudio: p.supportsAudio || false
+        supportsAudio: p.supportsAudio || false,
+        supportsThinking: p.supportsThinking || false,
+        supportsWebSearch: p.supportsWebSearch || false,
+        allowCustomSystemPrompt: p.allowCustomSystemPrompt || false
       }))
     }
   }

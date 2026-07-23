@@ -1,6 +1,8 @@
 /**
- * GET /api/admin/chat/detail?userId=xxx
- * 管理员查看指定用户的详细聊天记录
+ * ============================================================
+ *  聊天管理详情 API - GET /api/admin/chat/detail（需管理员登录）
+ *  Query 参数 userId：查看指定用户的完整聊天记录
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { loadUserChat } from '../../../utils/chat-storage'

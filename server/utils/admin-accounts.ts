@@ -63,7 +63,10 @@ export function saveAccounts(accounts: AdminAccount[]): void {
 
 /**
  * 使用 scrypt 哈希密码
- * 返回格式: "scrypt:<salt_hex>:<hash_hex>"
+ * 安全考量：scrypt 为内存困难型 KDF，抗 GPU/ASIC 暴力破解；
+ * 每个密码使用独立随机 32 字节盐，防彩虹表
+ * @param password - 明文密码
+ * @returns 格式 "scrypt:<salt_hex>:<hash_hex>"，永不明文存储
  */
 export function hashPassword(password: string): string {
   const salt = randomBytes(32)
@@ -73,6 +76,10 @@ export function hashPassword(password: string): string {
 
 /**
  * 验证密码是否匹配
+ * 安全考量：scrypt 重算后与存储哈希做 timingSafeEqual 常量时间比较，
+ * 防止时序侧信道；格式非法或长度不符时静默失败
+ * 注意：本函数与 scripts/admin-accounts.mjs 中的实现为平行版本，
+ *       哈希参数（盐长 32、输出 64）改动时两边必须同步
  */
 export function verifyPasswordHash(password: string, storedHash: string): boolean {
   try {

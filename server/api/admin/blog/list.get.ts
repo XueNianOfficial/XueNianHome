@@ -1,6 +1,8 @@
 /**
- * GET /api/admin/blog/list
- * 列出所有博客文章（含草稿）
+ * ============================================================
+ *  博客管理列表 API - GET /api/admin/blog/list（需管理员登录）
+ *  列出所有博客文章（含草稿与正文，按日期倒序）
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { readdir, readFile } from 'node:fs/promises'

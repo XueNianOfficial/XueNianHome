@@ -1,8 +1,10 @@
 /**
  * ============================================================
  *  管理后台服务端认证中间件
- *  拦截 /admin 页面请求，未登录用户仅返回最小化登录页
- *  防止管理面板 JS/CSS 暴露给未认证用户
+ *  - 拦截 /admin 页面请求，未登录用户仅返回最小化登录页，
+ *    防止管理面板 JS/CSS 暴露给未认证用户
+ *  - 登录页内联脚本从 csrf_token cookie 取值并附带 x-csrf-token 头，
+ *    与 /api/admin/login 的 csrfProtection 校验配套
  * ============================================================
  */
 import { getCurrentUser } from '../utils/admin-auth'
@@ -40,7 +42,9 @@ const LOGIN_HTML = `<!DOCTYPE html>
     </form>
   </div>
   <script>
-    document.getElementById('loginForm').addEventListener('submit',async function(e){e.preventDefault();var u=document.getElementById('username').value.trim(),p=document.getElementById('password').value,btn=document.getElementById('loginBtn'),err=document.getElementById('loginError');if(!u||!p)return;btn.disabled=true;btn.textContent='验证中...';err.textContent='';try{var res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});if(res.ok){window.location.reload()}else{var data=await res.json();err.textContent=data.message||'登录失败'}}catch(ex){err.textContent='网络错误，请重试'}finally{btn.disabled=false;btn.textContent='登录'}});
+    // 从 cookie 读取 CSRF Token（Double-Submit 模式，与全站 $fetch 插件行为一致）
+    function getCsrfToken(){var m=document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);return m?decodeURIComponent(m[1]):''}
+    document.getElementById('loginForm').addEventListener('submit',async function(e){e.preventDefault();var u=document.getElementById('username').value.trim(),p=document.getElementById('password').value,btn=document.getElementById('loginBtn'),err=document.getElementById('loginError');if(!u||!p)return;btn.disabled=true;btn.textContent='验证中...';err.textContent='';try{var res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':getCsrfToken()},body:JSON.stringify({username:u,password:p})});if(res.ok){window.location.reload()}else{var data=await res.json();err.textContent=data.message||'登录失败'}}catch(ex){err.textContent='网络错误，请重试'}finally{btn.disabled=false;btn.textContent='登录'}});
   </script>
 </body>
 </html>`

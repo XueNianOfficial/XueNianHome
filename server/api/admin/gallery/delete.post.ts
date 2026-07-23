@@ -1,6 +1,10 @@
 /**
- * POST /api/admin/gallery/delete
- * 删除图片（同时清理源目录和构建输出目录）
+ * ============================================================
+ *  POST /api/admin/gallery/delete
+ *  删除图片（同时清理源目录和构建输出目录）
+ *  安全：requireAuth 鉴权 + csrfProtection 校验；
+ *        filename 拒绝 ".." 与 "/"（防路径遍历）
+ * ============================================================
  */
 import { requireAuth } from '../../../utils/admin-auth'
 import { getPublicImagesDir } from '../../../utils/image-dir'
@@ -10,6 +14,7 @@ import { join } from 'node:path'
 
 export default defineEventHandler(async (event) => {
   requireAuth(event)
+  csrfProtection(event)
 
   const { filename } = await readBody(event)
   if (!filename) throw createError({ statusCode: 400, message: 'filename 为必填项' })

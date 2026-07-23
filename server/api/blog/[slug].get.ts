@@ -5,7 +5,8 @@
  *  返回指定 slug 的博客文章完整内容（含 HTML）
  *
  *  注意：getBlogPost 从 server/utils/markdown.ts 自动导入
- * ============================================================ */
+ * ============================================================
+ */
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')

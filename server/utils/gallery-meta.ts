@@ -15,7 +15,11 @@ export interface GalleryImageMeta {
   title: string
   /** 图片描述 */
   description: string
-  /** 图片分类 */
+  /**
+   * 图片分类（取值与 app/types/index.ts 中 GalleryImage['category'] 的
+   * 'illustration' | 'avatar' | 'logo' | 'other' 对应；服务端按自由字符串
+   * 原样存储，不做枚举强校验，以兼容后续新增分类）
+   */
   category: string
 }
 

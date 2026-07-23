@@ -10,6 +10,20 @@ import { join } from 'node:path'
 import { existsSync, mkdirSync } from 'node:fs'
 
 /**
+ * 图片扩展名（含点，小写）→ Content-Type 映射
+ * 供 server/routes/images/ 下的图片路由共用
+ */
+export const IMAGE_MIME_MAP: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon'
+}
+
+/**
  * 获取正确的 public/images 目录路径
  * 自动检测生产/开发环境并返回实际提供静态文件服务的目录
  */
