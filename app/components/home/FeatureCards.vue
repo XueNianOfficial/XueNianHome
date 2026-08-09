@@ -9,7 +9,7 @@
   <div class="feature-cards">
     <div class="cards-grid">
       <!-- 博客卡片 -->
-      <NuxtLink to="/blog" class="feature-card card">
+      <NuxtLink to="/blog" class="feature-card card" :ref="tilt.bind">
         <div class="card-icon">📝</div>
         <h3 class="card-title">博客</h3>
         <p class="card-desc">记录创作心得、技术分享和生活随笔</p>
@@ -19,7 +19,7 @@
       </NuxtLink>
 
       <!-- 画廊卡片 -->
-      <NuxtLink to="/gallery" class="feature-card card">
+      <NuxtLink to="/gallery" class="feature-card card" :ref="tilt.bind">
         <div class="card-icon">🖼️</div>
         <h3 class="card-title">画廊</h3>
         <p class="card-desc">毛茸茸的角色设计、插画和创意作品</p>
@@ -29,7 +29,7 @@
       </NuxtLink>
 
       <!-- AI 聊天卡片 -->
-      <NuxtLink to="/chat" class="feature-card card">
+      <NuxtLink to="/chat" class="feature-card card" :ref="tilt.bind">
         <div class="card-icon">💬</div>
         <h3 class="card-title">聊天</h3>
         <p class="card-desc">和雪年聊聊天吧~</p>
@@ -39,7 +39,7 @@
       </NuxtLink>
 
       <!-- 友链卡片 -->
-      <NuxtLink to="/friends" class="feature-card card">
+      <NuxtLink to="/friends" class="feature-card card" :ref="tilt.bind">
         <div class="card-icon">🔗</div>
         <h3 class="card-title">友链</h3>
         <p class="card-desc">好朋友们的站点，欢迎交换友链</p>
@@ -60,8 +60,13 @@
  *    填充模式取 backwards（仅延迟期间套用 from 状态），
  *    结束后归还样式控制权，避免覆盖悬停时的 transform
  *  - 悬停动效统一走 --transition-spring 弹性曲线
+ *  - 悬停 3D 倾斜 + 跟随指针的径向眩光（useTilt 写入 --glare-x/y，
+ *    ::after 伪元素渲染；非精确指针设备回退为纯 CSS 上浮）
  * ============================================================
  */
+
+/** 卡片 3D 倾斜（仅精确指针 + 未减弱动效时生效） */
+const tilt = useTilt({ maxTilt: 7, lift: 6, scale: 1.02 })
 </script>
 
 <style scoped>
@@ -76,11 +81,14 @@
 
 /* ---------- 单个卡片（在全局 .card 基础上叠加布局与动效） ---------- */
 .feature-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: var(--space-8) var(--space-6);
   text-decoration: none;
   cursor: pointer;
+  /* 裁进圆角，配合眩光 ::after */
+  overflow: hidden;
   animation: fade-in-up 0.55s ease backwards;
   transition:
     transform var(--transition-spring),
@@ -93,10 +101,30 @@
 .feature-card:nth-child(3) { animation-delay: 0.23s; }
 .feature-card:nth-child(4) { animation-delay: 0.32s; }
 
-/* 悬停：明显上浮 + 品牌蓝发光阴影（边框染色由 .card 工具类负责） */
+/* 悬停：明显上浮 + 品牌蓝发光阴影（边框染色由 .card 工具类负责；
+   3D 倾斜启用时由内联 transform 接管，此处作无鼠标设备回退） */
 .feature-card:hover {
   transform: translateY(-6px);
   box-shadow: var(--shadow-accent);
+}
+
+/* 眩光层：跟随 --glare-x/--glare-y 的径向高光（useTilt 逐帧写入变量） */
+.feature-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    300px circle at var(--glare-x, 50%) var(--glare-y, 50%),
+    color-mix(in srgb, var(--color-accent-light) 20%, transparent) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+  pointer-events: none;
+}
+
+.feature-card:hover::after {
+  opacity: 1;
 }
 
 /* ---------- 卡片图标：accent 浅底圆角块 + emoji 居中 ---------- */

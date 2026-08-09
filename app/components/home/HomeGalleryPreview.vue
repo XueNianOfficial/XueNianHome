@@ -81,7 +81,10 @@ defineProps<{
 
 .preview-item:hover {
   transform: translateY(calc(var(--row-offset, 0px) - 4px));
-  box-shadow: var(--shadow-md);
+  /* 常规阴影 + 主色光晕描边（第二道阴影模拟 2px 发光描边） */
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 2px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 
 .preview-item img {

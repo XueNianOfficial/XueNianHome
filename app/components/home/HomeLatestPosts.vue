@@ -15,7 +15,7 @@
         :delay="i * 110"
         class="post-cell"
       >
-        <NuxtLink :to="`/blog/${post.slug}`" class="post-card card">
+        <NuxtLink :to="`/blog/${post.slug}`" class="post-card card" :ref="tilt.bind">
           <!-- 封面：有封面图用图，无则用 accent 浅底 + emoji 占位 -->
           <div class="post-cover">
             <img v-if="post.cover" :src="post.cover" :alt="post.title" loading="lazy" />
@@ -49,9 +49,14 @@
  *  - 日期格式与 BlogCard 保持一致（YYYY年M月D日）
  *  - 每张卡片独立 ScrollReveal：入场方向按「左/上/右」轮换，
  *    延迟递增 110ms，形成错落有致的非线性入场
+ *  - 悬停 3D 倾斜 + 跟随指针的径向眩光（useTilt 写入 --glare-x/y，
+ *    ::after 伪元素渲染；非精确指针设备回退为纯 CSS 上浮）
  * ============================================================
  */
 import type { BlogPost } from '~/types'
+
+/** 卡片 3D 倾斜（仅精确指针 + 未减弱动效时生效） */
+const tilt = useTilt({ maxTilt: 6, lift: 6, scale: 1.02 })
 
 defineProps<{
   /** 最新文章列表（建议不超过 3 条） */
@@ -87,6 +92,7 @@ function formatDate(dateStr: string): string {
 
 /* ---------- 文章卡片（在全局 .card 基础上叠加布局与动效） ---------- */
 .post-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -99,8 +105,29 @@ function formatDate(dateStr: string): string {
 }
 
 .post-card:hover {
+  /* 3D 倾斜启用时由内联 transform 接管（含上浮），此处作无鼠标设备回退 */
   transform: translateY(-6px);
   box-shadow: var(--shadow-accent);
+}
+
+/* 眩光层：跟随 --glare-x/--glare-y 的径向高光（useTilt 逐帧写入变量），
+   悬停淡入；overflow:hidden 将其裁进卡片圆角内 */
+.post-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    320px circle at var(--glare-x, 50%) var(--glare-y, 50%),
+    color-mix(in srgb, var(--color-accent-light) 22%, transparent) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+  pointer-events: none;
+}
+
+.post-card:hover::after {
+  opacity: 1;
 }
 
 /* ---------- 封面（16:9 裁切，悬停时图片轻微放大） ---------- */

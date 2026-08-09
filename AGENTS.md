@@ -23,25 +23,37 @@ app/                    # 前端（Nuxt 4 的 srcDir 为 app/）
   components/           # 按域分组：admin/ blog/ chat/ common/ game/ home/
                         #   common/AppToast.vue 全局通知；admin/AdminConfirm.vue 确认弹窗；
                         #   chat/ 下 ChatWindow 为编排层，ChatInput/ChatWelcome/ChatSessionList 为子组件；
-                        #   common/CursorGlow.vue 鼠标光晕 + Canvas 丝带拖尾、
-                        #   common/ScrollReveal.vue 多方向滚动揭示（up/down/left/right/zoom）；
-                        #   home/ 下 HeroSection（视差立绘）、HomeStats、HomeLatestPosts、
-                        #   HomeGalleryPreview、HomeSocialLinks 等首页内容区组件
-  composables/          # useChat.ts（聊天状态）, useTheme.ts（亮/暗主题）, useToast.ts（全局通知）,
-                        # useParallax.ts（滚动视差，共享 rAF，首页 Hero 光晕/装饰元素使用）
+                        #   common/CursorGlow.vue 鼠标光晕 + Canvas 丝带拖尾（点击粒子爆发/
+                        #   涟漪 + 拖尾星光微粒）、
+                        #   common/ScrollReveal.vue 多方向滚动揭示（up/down/left/right/zoom）、
+                        #   common/ScrollProgress.vue 顶部滚动进度条（layouts/default.vue 挂载）；
+                        #   home/ 下 HeroSection（视差立绘 + SnowfallCanvas 画布雪花 +
+                        #   文字错落入场 + CTA 磁吸）、HomeStats、HomeLatestPosts（卡片 3D 倾斜+眩光）、
+                        #   HomeGalleryPreview、HomeSocialLinks（胶囊磁吸）、
+                        #   AuroraBackground（全站极光彩带背景，--aurora-* 令牌）等首页内容区组件
+  composables/          # useChat.ts（聊天状态，isDrawing/drawElapsed 作画等待计时）,
+                        # useTheme.ts（亮/暗主题）, useToast.ts（全局通知）,
+                        # useParallax.ts（滚动视差，共享 rAF，首页 Hero 光晕/装饰元素使用）,
+                        # useTilt.ts（卡片 3D 倾斜 + --glare-x/y 眩光，共享 rAF）,
+                        # useMagnetic.ts（按钮/胶囊磁吸回弹，共享 rAF）
   layouts/default.vue   # 默认布局（AppHeader + 页脚 + 主题 + AppToast 全局通知）
   plugins/csrf.client.ts# 用 Proxy 包装全局 $fetch，自动给变更请求附加 CSRF 头
   data/                 # 静态前端数据（friends.ts 作为 /api/friends 的回退, social.ts）
   types/index.ts        # 全站 TypeScript 类型（BlogPost, ChatMessage, GalleryImage 等）
   assets/css/main.css   # 设计系统：CSS 变量定义亮/暗双主题（主色 #4A90D9），含语义色/
-                        # 间距/字号/阴影/圆角/z-index 令牌与 .btn/.input/.badge 等工具类
+                        # 间距/字号/阴影/圆角/z-index 令牌与 .btn/.input/.badge 等工具类；
+                        # --aurora-1/2/3 + --aurora-strength 为极光背景配色令牌（RGBA 分量+强度）、
+                        # --color-accent-sheen 为中文名流光渐变的高光 stop
 
 server/                 # Nitro 后端
   api/                  # 文件路由（xxx.get.ts / xxx.post.ts / xxx.delete.ts）
     chat.post.ts        #   POST /api/chat（SSE 流式或 JSON，先过 csrfProtection）
                         #   支持会话级 enableThinking/enableSearch/customSystemPrompt（服务端 resolveChatOptions 校验）
     chat/upload.post.ts #   聊天图片上传；chat/history.* 聊天记录读写
-    chat/draw.post.ts   #   AI 画图（内存限速 5次/60s/IP，火山方舟 images/generations，结果落盘 images/chat/）
+    chat/draw.post.ts   #   AI 画图（内存限速 5次/60s/IP，火山方舟 images/generations，结果落盘 images/chat/；
+                        #   长连接保活：立即下发 200 响应头 + 每 5s 空格心跳 + X-Accel-Buffering:no，
+                        #   防中间网络掐断静默长连接（nginx 499）；生成阶段成败以响应体 success
+                        #   字段表达，参数校验错误（400/429/405）仍按 HTTP 状态码抛出）
     presets.get.ts      #   公开：AI 预设名称/能力标记（不含密钥）
                         #   另下发 default 三能力、imageGenEnabled、promptTemplates
     blog/ friends.get.ts gallery/  # 公开只读接口

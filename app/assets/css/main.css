@@ -53,6 +53,14 @@ button {
   --color-accent-dark: #3574C2;       /* 深强调色：链接悬停 */
   --color-accent-bg: #E8F0FA;         /* 强调色的浅底色（选中态背景） */
   --color-accent-gradient: linear-gradient(135deg, #4A90D9 0%, #6FB1F0 100%);
+  /* 流光高光色：中文名渐变中的高光 stop（background-clip: text 动画用） */
+  --color-accent-sheen: #CFE6FB;
+
+  /* ---------- 极光背景（AuroraBackground，RGB 三元组供 rgba() 使用） ---------- */
+  --aurora-1: 74, 144, 217;   /* 主色蓝 */
+  --aurora-2: 94, 200, 214;   /* 青 */
+  --aurora-3: 155, 140, 232;  /* 紫 */
+  --aurora-strength: 0.14;    /* 光斑不透明度（亮色主题宜淡，避免干扰阅读） */
 
   /* ---------- 语义色（成功/警告/危险） ---------- */
   --color-success: #10B981;
@@ -142,6 +150,13 @@ html.dark {
   --color-accent-dark: #4A90D9;
   --color-accent-bg: #1C3A5E;
   --color-accent-gradient: linear-gradient(135deg, #5C9DE8 0%, #8BC0F8 100%);
+  --color-accent-sheen: #EAF4FF;
+
+  /* 极光背景：暗色下更出彩，强度适当提高 */
+  --aurora-1: 91, 141, 239;   /* 蓝 */
+  --aurora-2: 45, 212, 191;   /* 青 */
+  --aurora-3: 167, 139, 250;  /* 紫 */
+  --aurora-strength: 0.2;
 
   --color-success: #34D399;
   --color-success-bg: #064E3B;

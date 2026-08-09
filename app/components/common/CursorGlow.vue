@@ -28,11 +28,52 @@
  *    彻底消除旧版「逐段独立描边」的串珠式生硬感
  *  - 活跃度：由鼠标实时速度驱动，连续地在 0~1 间升降——
  *    移动即刻点亮，静止时余韵式渐隐（上升快、下降慢）
+ *  - 点击反馈：mousedown 触发粒子爆发（径向速度 + 阻力 + 微重力）
+ *    与扩散涟漪（accent 描边圆 8→72px 淡出）
+ *  - 星光微粒：拖尾头部区域按概率洒出小光点（accent 向白混合 65%），
+ *    正弦闪烁后熄灭，数量上限 30 粒；与点击特效共用独立 FX 通道，
+ *    不受活跃度渐隐影响
  *  - 光晕：DOM 径向渐变 + lerp 追随，color-mix 取主题色
  *  - 丝带颜色从 --color-accent 读取，主题切换时重新生成贴图
  *  - 仅在「精确指针（鼠标）且未要求减弱动效」时启用
  * ============================================================
  */
+
+/** 链条节点（拖尾骨架上的一个关节） */
+interface ChainNode {
+  x: number
+  y: number
+}
+
+/** 点击爆发粒子 */
+interface BurstParticle {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  life: number
+  maxLife: number
+  radius: number
+}
+
+/** 点击涟漪（扩散描边圆） */
+interface Ripple {
+  x: number
+  y: number
+  life: number
+  maxLife: number
+}
+
+/** 拖尾头部洒出的星光微粒 */
+interface Sparkle {
+  x: number
+  y: number
+  life: number
+  maxLife: number
+  radius: number
+  /** 闪烁相位（正弦驱动亮度） */
+  phase: number
+}
 
 /** 链条节点数：越多拖尾越长、越飘逸 */
 const TRAIL_NODES = 26
@@ -54,12 +95,23 @@ const ACTIVITY_DOWN = 0.045
 const GLOW_EASE = 0.14
 /** 鼠标静止多久后整体淡出（毫秒，主要影响光晕） */
 const IDLE_TIMEOUT = 1400
-
-/** 链条节点（拖尾骨架上的一个关节） */
-interface ChainNode {
-  x: number
-  y: number
-}
+/** 点击爆发粒子数 */
+const BURST_COUNT = 14
+/** 粒子每帧速度衰减（阻力系数） */
+const BURST_DRAG = 0.92
+/** 粒子微重力（每帧 vy 增量，让碎屑轻微下坠） */
+const BURST_GRAVITY = 0.04
+/** 涟漪扩散半径（起 → 止，像素）与持续帧数 */
+const RIPPLE_R0 = 8
+const RIPPLE_R1 = 72
+const RIPPLE_LIFE = 36
+/** 星光微粒：同时在场上限、拖尾头部盖章时的洒出概率 */
+const SPARKLE_MAX = 30
+const SPARKLE_CHANCE = 0.06
+/** 星光颜色 = 主色向白混合比例 */
+const SPARKLE_WHITE_MIX = 0.65
+/** 窗口缩放防抖间隔（毫秒） */
+const RESIZE_DEBOUNCE = 200
 
 const enabled = ref(false)
 const isActive = ref(false)
@@ -91,6 +143,18 @@ let accentColor = '#4A90D9'
 /** 软圆印章贴图（离屏画布，随主题色重新生成） */
 let trailSprite: HTMLCanvasElement | null = null
 let themeObserver: MutationObserver | null = null
+/** 主色 RGB（涟漪描边、粒子混合用，随主题切换更新） */
+let accentRgb: [number, number, number] = [74, 144, 217]
+/** 星光颜色（主色向白混合后的 rgb() 字符串，随主题切换更新） */
+let sparkleColor = 'rgb(208, 228, 251)'
+/** 点击爆发粒子池 */
+const bursts: BurstParticle[] = []
+/** 涟漪池 */
+const ripples: Ripple[] = []
+/** 星光微粒池 */
+const sparkles: Sparkle[] = []
+/** resize 防抖计时器 */
+let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
 function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t
@@ -100,6 +164,14 @@ function lerp(from: number, to: number, t: number): number {
 function readAccentColor(): void {
   const value = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim()
   if (value) accentColor = value
+  updateAccentDerived()
+}
+
+/** 主色变化后刷新派生量：RGB 三元组与星光混合色（主色 → 白 65%） */
+function updateAccentDerived(): void {
+  accentRgb = parseHexColor(accentColor)
+  const mix = (c: number): number => Math.round(c + (255 - c) * SPARKLE_WHITE_MIX)
+  sparkleColor = `rgb(${mix(accentRgb[0])}, ${mix(accentRgb[1])}, ${mix(accentRgb[2])})`
 }
 
 /** 解析 #rgb / #rrggbb 颜色为 [r, g, b]，解析失败时回退默认主色 */
@@ -212,6 +284,18 @@ function stamp(x: number, y: number, u: number): void {
   // 内层核心
   ctx.globalAlpha = baseAlpha
   ctx.drawImage(trailSprite, x - radius, y - radius, radius * 2, radius * 2)
+
+  // 拖尾头部区域按概率洒出星光微粒（正弦闪烁后自然熄灭，有场上限）
+  if (activity > 0.3 && u < 0.25 && sparkles.length < SPARKLE_MAX && Math.random() < SPARKLE_CHANCE) {
+    sparkles.push({
+      x: x + (Math.random() - 0.5) * 10,
+      y: y + (Math.random() - 0.5) * 10,
+      life: 0,
+      maxLife: 40 + Math.random() * 40,
+      radius: 0.8 + Math.random() * 1.1,
+      phase: Math.random() * Math.PI * 2
+    })
+  }
 }
 
 /**
@@ -261,7 +345,99 @@ function drawTrail(): void {
   ctx.globalAlpha = 1
 }
 
-/** 动画主循环：更新光晕位置、推进链条并重绘丝带 */
+/** 点击：在指针处生成一圈爆发粒子 + 一道扩散涟漪，并刷新整体淡出计时 */
+function onMouseDown(e: MouseEvent): void {
+  for (let i = 0; i < BURST_COUNT; i++) {
+    const angle = Math.random() * Math.PI * 2
+    const speed = 1.5 + Math.random() * 3
+    bursts.push({
+      x: e.clientX,
+      y: e.clientY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0,
+      maxLife: 40 + Math.random() * 30,
+      radius: 1 + Math.random() * 1.6
+    })
+  }
+  ripples.push({ x: e.clientX, y: e.clientY, life: 0, maxLife: RIPPLE_LIFE })
+
+  // 点击也算一次「活动」：保持特效容器可见
+  isActive.value = true
+  clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    isActive.value = false
+  }, IDLE_TIMEOUT)
+}
+
+/** 推进点击粒子 / 涟漪 / 星光微粒的生命周期（独立于拖尾活跃度） */
+function updateFX(): void {
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const p = bursts[i]
+    p.vx *= BURST_DRAG
+    p.vy = p.vy * BURST_DRAG + BURST_GRAVITY
+    p.x += p.vx
+    p.y += p.vy
+    p.life++
+    if (p.life >= p.maxLife) bursts.splice(i, 1)
+  }
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    ripples[i].life++
+    if (ripples[i].life >= ripples[i].maxLife) ripples.splice(i, 1)
+  }
+  for (let i = sparkles.length - 1; i >= 0; i--) {
+    sparkles[i].life++
+    if (sparkles[i].life >= sparkles[i].maxLife) sparkles.splice(i, 1)
+  }
+}
+
+/** 绘制点击粒子 / 涟漪 / 星光微粒（在拖尾之后叠加，复用其柔圆贴图） */
+function drawFX(): void {
+  if (!ctx) return
+
+  // 涟漪：accent 描边圆从 RIPPLE_R0 扩散到 RIPPLE_R1 并淡出
+  for (const r of ripples) {
+    const t = r.life / r.maxLife
+    const radius = RIPPLE_R0 + (RIPPLE_R1 - RIPPLE_R0) * t
+    ctx.strokeStyle = `rgba(${accentRgb[0]}, ${accentRgb[1]}, ${accentRgb[2]}, ${(0.5 * (1 - t)).toFixed(3)})`
+    ctx.lineWidth = 2 * (1 - t) + 0.5
+    ctx.beginPath()
+    ctx.arc(r.x, r.y, radius, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // 爆发粒子：盖柔圆印章，发光质感与拖尾统一
+  if (trailSprite) {
+    for (const p of bursts) {
+      const t = p.life / p.maxLife
+      ctx.globalAlpha = 0.8 * (1 - t)
+      ctx.drawImage(trailSprite, p.x - p.radius, p.y - p.radius, p.radius * 2, p.radius * 2)
+    }
+    ctx.globalAlpha = 1
+  }
+
+  // 星光微粒：正弦闪烁的小亮点
+  if (sparkles.length > 0) {
+    ctx.fillStyle = sparkleColor
+    for (const s of sparkles) {
+      const t = s.life / s.maxLife
+      const twinkle = 0.5 + 0.5 * Math.sin(s.phase + s.life * 0.35)
+      ctx.globalAlpha = (1 - t) * twinkle * 0.9
+      ctx.beginPath()
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.globalAlpha = 1
+  }
+}
+
+/** resize 防抖：窗口连续变化时只在停顿后重建画布 */
+function onResizeDebounced(): void {
+  clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(resizeCanvas, RESIZE_DEBOUNCE)
+}
+
+/** 动画主循环：更新光晕位置、推进链条并重绘丝带与 FX 叠加层 */
 function tick(): void {
   glowX = lerp(glowX, mouseX, GLOW_EASE)
   glowY = lerp(glowY, mouseY, GLOW_EASE)
@@ -270,6 +446,8 @@ function tick(): void {
   }
   updateChain()
   drawTrail()
+  updateFX()
+  drawFX()
   rafId = requestAnimationFrame(tick)
 }
 
@@ -313,7 +491,8 @@ onMounted(() => {
     })
 
     window.addEventListener('mousemove', onMouseMove, { passive: true })
-    window.addEventListener('resize', resizeCanvas)
+    window.addEventListener('mousedown', onMouseDown, { passive: true })
+    window.addEventListener('resize', onResizeDebounced, { passive: true })
     document.addEventListener('visibilitychange', onVisibilityChange)
     rafId = requestAnimationFrame(tick)
   })
@@ -322,9 +501,11 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(rafId)
   clearTimeout(idleTimer)
+  clearTimeout(resizeTimer)
   themeObserver?.disconnect()
   window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('resize', resizeCanvas)
+  window.removeEventListener('mousedown', onMouseDown)
+  window.removeEventListener('resize', onResizeDebounced)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>

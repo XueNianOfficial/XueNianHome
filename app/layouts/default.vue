@@ -6,6 +6,9 @@
 -->
 <template>
   <div class="layout-default">
+    <!-- 顶部滚动进度条（fixed 3px 渐变条，z-index 高于吸顶导航） -->
+    <CommonScrollProgress />
+
     <!-- 顶部导航栏（吸顶固定） -->
     <CommonAppHeader />
 

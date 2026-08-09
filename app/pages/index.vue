@@ -1,5 +1,8 @@
 <template>
   <div class="home-page">
+    <!-- 全站极光彩带背景（fixed z-index:-1，亮/暗主题自动切换配色） -->
+    <HomeAuroraBackground />
+
     <!-- 鼠标光晕与丝带拖尾（仅细指针设备启用，组件内部自行判断） -->
     <CommonCursorGlow />
 
@@ -109,6 +112,7 @@
  *  - 非线性动效：各区块入场方向交替（左/右/缩放/上浮）、
  *    卡片逐张交错入场、缓动带轻微过冲回弹、装饰元素滚动视差
  *  - 鼠标光晕 + Canvas 丝带拖尾（尊重 prefers-reduced-motion）
+ *  - AuroraBackground 极光彩带背景（fixed 底层，配色走 --aurora-* 令牌）
  *  - 数据统一在此通过 useFetch 拉取，再以 props 传给各内容区组件
  * ============================================================
  */

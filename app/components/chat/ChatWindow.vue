@@ -212,6 +212,8 @@ const {
   activeSession,
   messages,
   isLoading,
+  isDrawing,
+  drawElapsed,
   streamingPreview,
   error,
   presets,
@@ -355,9 +357,11 @@ watch(activeSessionId, () => {
 
 // ==================== 加载态与头像 ====================
 
-const loadingText = computed(() =>
-  currentPreset.value ? `${currentPreset.value} 正在思考...` : '雪年正在思考...'
-)
+const loadingText = computed(() => {
+  // 作画期间展示专属文案与已等待秒数（画图接口耗时长，给用户进度感）
+  if (isDrawing.value) return `雪年正在作画…（已等待 ${drawElapsed.value} 秒）`
+  return currentPreset.value ? `${currentPreset.value} 正在思考...` : '雪年正在思考...'
+})
 
 const DEFAULT_AVATAR = '/images/头像.png'
 const streamAvatar = computed(() => currentPresetAvatar.value || DEFAULT_AVATAR)

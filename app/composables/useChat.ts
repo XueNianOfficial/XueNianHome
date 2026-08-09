@@ -237,6 +237,33 @@ const activeSessionId = ref<string>('')
 /** 是否正在等待/接收 AI 回复 */
 const isLoading = ref(false)
 
+/** 是否正在等待 AI 作画（手动 /draw 或回复内 [DRAW] 自主画图期间为 true） */
+const isDrawing = ref(false)
+
+/** 作画已等待秒数（每秒自增，供加载提示展示进度感） */
+const drawElapsed = ref(0)
+
+/** 作画计时器（1s 步进） */
+let drawClockTimer: ReturnType<typeof setInterval> | undefined
+
+/** 开始作画计时：isDrawing 置位并启动秒表 */
+function startDrawClock(): void {
+  isDrawing.value = true
+  drawElapsed.value = 0
+  clearInterval(drawClockTimer)
+  drawClockTimer = setInterval(() => {
+    drawElapsed.value++
+  }, 1000)
+}
+
+/** 结束作画计时（多次并发画图时以最后一次收尾为准，简单可靠） */
+function stopDrawClock(): void {
+  isDrawing.value = false
+  drawElapsed.value = 0
+  clearInterval(drawClockTimer)
+  drawClockTimer = undefined
+}
+
 /** 流式传输中尚未凑成完整句子的文本（用于流式预览光标气泡） */
 const streamingContent = ref('')
 
@@ -1042,24 +1069,30 @@ export function useChat() {
     const limited = entries.slice(0, MAX_AUTO_DRAWS_PER_REPLY)
     pendingAutoDraws.value = []
 
-    for (const { prompt, refHint } of limited) {
-      const refImages = resolveRefImages(refHint, session, prompt)
+    // 自主画图可能连续多张：整个循环期间保持作画计时
+    if (limited.length > 0) startDrawClock()
+    try {
+      for (const { prompt, refHint } of limited) {
+        const refImages = resolveRefImages(refHint, session, prompt)
 
-      const imageUrl = await requestDrawUrl(prompt.slice(0, 500), session.id, refImages.length > 0 ? refImages : undefined)
-      if (imageUrl) {
-        const refNote = refImages.length > 0 ? `（已参考 ${refImages.length} 张图片）` : ''
-        session.messages.push({
-          id: generateId(),
-          role: 'assistant' as ChatRole,
-          content: `画好啦～这是咱画的「${prompt}」：${refNote}`,
-          parts: [{ type: 'image_url' as const, image_url: { url: imageUrl } }],
-          timestamp: Date.now()
-        })
-        session.lastActiveAt = Date.now()
-        saveSessions()
-      } else if (!error.value) {
-        error.value = drawErrorMessage ? `自主画图失败：${drawErrorMessage}` : '自主画图失败，请稍后再试'
+        const imageUrl = await requestDrawUrl(prompt.slice(0, 500), session.id, refImages.length > 0 ? refImages : undefined)
+        if (imageUrl) {
+          const refNote = refImages.length > 0 ? `（已参考 ${refImages.length} 张图片）` : ''
+          session.messages.push({
+            id: generateId(),
+            role: 'assistant' as ChatRole,
+            content: `画好啦～这是咱画的「${prompt}」：${refNote}`,
+            parts: [{ type: 'image_url' as const, image_url: { url: imageUrl } }],
+            timestamp: Date.now()
+          })
+          session.lastActiveAt = Date.now()
+          saveSessions()
+        } else if (!error.value) {
+          error.value = drawErrorMessage ? `自主画图失败：${drawErrorMessage}` : '自主画图失败，请稍后再试'
+        }
       }
+    } finally {
+      stopDrawClock()
     }
   }
 
@@ -1451,6 +1484,7 @@ export function useChat() {
     isLoading.value = true
     error.value = null
     drawErrorMessage = null
+    startDrawClock()
 
     const imageUrl = await requestDrawUrl(prompt, session.id, refImages.length > 0 ? refImages : undefined)
     if (imageUrl) {
@@ -1469,6 +1503,7 @@ export function useChat() {
     } else {
       error.value = drawErrorMessage || '画图失败，请稍后重试'
     }
+    stopDrawClock()
     isLoading.value = false
   }
 
@@ -1563,6 +1598,8 @@ export function useChat() {
     activeSession,
     messages,
     isLoading,
+    isDrawing,
+    drawElapsed,
     streamingContent,
     streamingPreview,
     streamingReasoning,

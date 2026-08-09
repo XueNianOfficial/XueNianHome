@@ -19,6 +19,7 @@
         rel="noopener noreferrer"
         class="social-pill"
         :style="{ '--platform-color': link.color }"
+        :ref="magnetic.bind"
       >
         <span class="platform-dot" aria-hidden="true"></span>
         {{ link.platform }}
@@ -35,9 +36,14 @@
  *  - 每个平台的品牌色通过 CSS 变量 --platform-color 传入，
  *    用于小圆点与悬停边框染色（属于内容数据，非主题色）
  *  - 每枚胶囊独立 ScrollReveal：缩放弹入 + 70ms 递增延迟
+ *  - 悬停磁吸：胶囊向指针轻微吸附、离开回弹（useMagnetic；
+ *    内联 transform 接管后 CSS 上浮仅作无鼠标设备回退）
  * ============================================================
  */
 import { socialLinks } from '~/data/social'
+
+/** 胶囊磁吸（仅精确指针 + 未减弱动效时生效） */
+const magnetic = useMagnetic({ strength: 0.35, maxOffset: 5 })
 </script>
 
 <style scoped>

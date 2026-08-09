@@ -3,6 +3,7 @@
   雪年个人网站 - 首页英雄区域
   角色主视觉：立绘 + 名字 + 标签语轮播 + 简介 + CTA 按钮组
   动效：立绘 3D 视差倾斜 / 名字流光渐变 / 背景光晕漂移 + 滚动视差 / 雪花浮动
+        / 画布雪花粒子（SnowfallCanvas）/ 文字错落入场 / CTA 磁吸按钮
 ============================================================
 -->
 <template>
@@ -24,6 +25,9 @@
       <span class="decor-snow decor-snow--2">❆</span>
       <span class="decor-snow decor-snow--3">❅</span>
     </div>
+
+    <!-- 画布雪花粒子：三层景深 + 鼠标风场（位于背景装饰之上、内容之下） -->
+    <HomeSnowfallCanvas />
 
     <div class="container-page hero-content">
       <!-- 左侧：角色立绘（白色相框 + 背后光晕）
@@ -63,13 +67,13 @@
           欢迎常来坐坐！
         </p>
         <div class="hero-actions">
-          <NuxtLink to="/chat" class="btn-primary">
+          <NuxtLink to="/chat" class="btn-primary" :ref="magnetic.bind">
             💬 和我聊天
           </NuxtLink>
-          <NuxtLink to="/blog" class="btn-outline">
+          <NuxtLink to="/blog" class="btn-outline" :ref="magnetic.bind">
             📝 阅读博客
           </NuxtLink>
-          <NuxtLink to="/gallery" class="btn-outline">
+          <NuxtLink to="/gallery" class="btn-outline" :ref="magnetic.bind">
             🖼️ 欣赏画廊
           </NuxtLink>
         </div>
@@ -100,10 +104,16 @@
  *    · 标签语轮播：每 3.2 秒切换一句（上浮淡入），减弱动效时固定第一句
  *    · 背景光晕：color-mix 基于 --color-accent 取色并缓慢漂移，
  *      亮/暗主题切换时色相自动跟随
+ *    · 画布雪花：SnowfallCanvas 三层景深飘落，鼠标横向移动生风
+ *    · CTA 磁吸：按钮向指针轻微吸附、离开回弹（useMagnetic）
  *  - 入场使用全局 fade-in-up 关键帧（backwards 填充，
- *    避免动画结束后的 fill 状态覆盖悬停 transform）
+ *    避免动画结束后的 fill 状态覆盖悬停 transform）；
+ *    文字区改为子元素各自错落入场，层次更细腻
  * ============================================================
  */
+
+/** CTA 按钮磁吸（仅精确指针 + 未减弱动效时生效） */
+const magnetic = useMagnetic({ strength: 0.3, maxOffset: 6 })
 
 /** 轮播标签语：雪年的「一句话状态」 */
 const taglines = [
@@ -373,11 +383,30 @@ onUnmounted(() => {
   50% { transform: translateY(-10px); }
 }
 
-/* ---------- 文字区域 ---------- */
+/* ---------- 文字区域 ----------
+   整块入场动画已下放到各子元素：错落延迟依次浮现，层次更细腻 */
 .hero-text {
   max-width: 480px;
-  /* 入场比立绘稍晚，形成先后层次 */
-  animation: fade-in-up 0.6s ease 0.15s backwards;
+}
+
+.hero-text > .hero-badge {
+  animation: fade-in-up 0.6s ease 0.25s backwards;
+}
+
+.hero-text > .hero-name {
+  animation: fade-in-up 0.6s ease 0.35s backwards;
+}
+
+.hero-text > .hero-tagline {
+  animation: fade-in-up 0.6s ease 0.45s backwards;
+}
+
+.hero-text > .hero-description {
+  animation: fade-in-up 0.6s ease 0.55s backwards;
+}
+
+.hero-text > .hero-actions {
+  animation: fade-in-up 0.6s ease 0.7s backwards;
 }
 
 /* 角色标签：复用全局 .badge（accent 浅底胶囊） */
@@ -392,7 +421,8 @@ onUnmounted(() => {
 }
 
 /* 中文名：大标题 + 流光渐变文字，作为整页视觉焦点。
-   渐变首尾同为 accent 色，background-position 循环一周无跳变 */
+   渐变首尾同为 accent 色，background-position 循环一周无跳变；
+   中间插入 sheen 高光 stop，流光扫过时有一道亮痕 */
 .name-chinese {
   display: block;
   font-size: var(--text-4xl);
@@ -402,7 +432,9 @@ onUnmounted(() => {
   background: linear-gradient(
     120deg,
     var(--color-accent) 0%,
+    var(--color-accent-sheen) 28%,
     var(--color-accent-light) 45%,
+    var(--color-accent-sheen) 62%,
     var(--color-accent) 100%
   );
   background-size: 220% auto;
@@ -487,7 +519,10 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-1);
   color: var(--color-text-muted);
-  animation: bounce-hint 2s ease-in-out infinite;
+  /* 弹跳提示常驻 + 首屏延迟淡入（fade-in 只动 opacity，与 transform 动画互补） */
+  animation:
+    bounce-hint 2s ease-in-out infinite,
+    fade-in 0.8s ease 1.2s backwards;
 }
 
 .scroll-arrow {
