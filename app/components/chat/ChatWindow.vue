@@ -158,8 +158,8 @@
         </div>
       </div>
 
-      <!-- 思考中指示器 -->
-      <div v-if="isLoading" class="chat-loading">
+      <!-- 思考中指示器（已有流式内容预览时隐藏，避免两种加载态叠加） -->
+      <div v-if="isLoading && !streamingPreview" class="chat-loading">
         <div class="typing-indicator">
           <span></span><span></span><span></span>
         </div>
@@ -701,29 +701,9 @@ onMounted(() => {
   opacity: 0;
 }
 
-/* 免责声明弹窗 */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-bg-mask);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal);
-  padding: var(--space-md);
-}
-
-.modal-card {
-  width: 100%;
+/* 免责声明弹窗（基础弹窗样式见 main.css 全局 .modal-* 体系） */
+.disclaimer-modal {
   max-width: 420px;
-  padding: var(--space-lg);
-  animation: fade-in-up var(--transition-base) both;
-}
-
-.modal-title {
-  margin: 0 0 var(--space-md);
-  font-size: var(--text-base);
-  color: var(--color-text-primary);
 }
 
 .disclaimer-body {
@@ -750,12 +730,6 @@ onMounted(() => {
   color: var(--color-text-secondary);
   cursor: pointer;
   margin-bottom: var(--space-md);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-sm);
 }
 
 @media (max-width: 640px) {

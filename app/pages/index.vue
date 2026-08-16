@@ -166,9 +166,9 @@ const decoStarEl = useParallax(-0.06)
 
 <style scoped>
 .section-title {
-  font-size: var(--font-size-3xl);
+  font-size: var(--text-3xl);
   text-align: center;
-  color: var(--color-text);
+  color: var(--color-text-primary);
   margin-bottom: var(--space-6);
 }
 
@@ -183,7 +183,7 @@ const decoStarEl = useParallax(-0.06)
 
 .section-subtitle {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-base);
+  font-size: var(--text-base);
   margin: 0;
 }
 
@@ -199,7 +199,7 @@ const decoStarEl = useParallax(-0.06)
 }
 
 .about-content p {
-  font-size: var(--font-size-lg);
+  font-size: var(--text-lg);
   color: var(--color-text-secondary);
   line-height: 1.8;
   margin-bottom: var(--space-4);
@@ -208,7 +208,7 @@ const decoStarEl = useParallax(-0.06)
 .about-link {
   color: var(--color-accent);
   text-decoration: none;
-  font-weight: var(--font-weight-medium);
+  font-weight: 500;
   margin: 0 var(--space-1);
   transition: color var(--transition-fast);
 }

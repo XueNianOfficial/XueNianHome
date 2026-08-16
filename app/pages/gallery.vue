@@ -110,10 +110,22 @@
             </button>
             <!-- 大图与信息 -->
             <div class="lightbox-content">
+              <!-- 大图加载中 / 加载失败的状态提示 -->
+              <div v-if="lightboxLoading" class="lightbox-status">
+                <span class="spinner" aria-label="加载中" />
+              </div>
+              <div v-else-if="lightboxError" class="lightbox-status lightbox-status-error">
+                <span>⚠️ 图片加载失败</span>
+                <button class="btn-outline btn-sm" @click.stop="retryLightbox">重试</button>
+              </div>
               <img
+                v-show="!lightboxLoading && !lightboxError"
+                :key="`${lightboxImage.src}#${lightboxRetry}`"
                 :src="lightboxImage.src"
                 :alt="lightboxImage.title"
                 class="lightbox-img"
+                @load="lightboxLoading = false"
+                @error="onLightboxError"
               />
               <div class="lightbox-info">
                 <div class="lightbox-info-text">
@@ -199,10 +211,34 @@ function categoryCount(category: string): number {
 /** 灯箱状态：-1 表示关闭，否则为 visibleImages 中的下标 */
 const lightboxIndex = ref<number>(-1)
 
+/** 大图加载状态：加载中 / 加载失败（切换图片时重置） */
+const lightboxLoading = ref(false)
+const lightboxError = ref(false)
+
 /** 当前预览的图片 */
 const lightboxImage = computed(() => {
   if (lightboxIndex.value < 0) return null
   return visibleImages.value[lightboxIndex.value]
+})
+
+/** 大图加载失败 */
+function onLightboxError() {
+  lightboxLoading.value = false
+  lightboxError.value = true
+}
+
+/** 加载失败后重试：通过 :key 变化强制重建 img 重新发起请求 */
+const lightboxRetry = ref(0)
+function retryLightbox() {
+  lightboxLoading.value = true
+  lightboxError.value = false
+  lightboxRetry.value++
+}
+
+/** 切换图片时重置加载状态 */
+watch(lightboxImage, () => {
+  lightboxLoading.value = true
+  lightboxError.value = false
 })
 
 /** 打开灯箱（在可见列表中定位，保证左右切换不越出筛选结果） */
@@ -482,6 +518,19 @@ onUnmounted(() => {
   object-fit: contain;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
+}
+
+/* 大图加载中 / 加载失败的状态占位（与图片同区域，避免灯箱跳动） */
+.lightbox-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-width: min(480px, 80vw);
+  min-height: 40vh;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
 }
 
 /* 底部信息条：复用卡片配色，保证亮/暗主题下都可读 */

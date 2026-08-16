@@ -108,9 +108,19 @@ button {
   --space-12: 48px;
   --space-16: 64px;
 
+  /* 语义化别名（chat 等组件使用）：映射到上面的数字刻度，
+     新增代码优先使用数字刻度，别名仅为兼容既有组件 */
+  --space-xs: var(--space-1);
+  --space-sm: var(--space-2);
+  --space-md: var(--space-4);
+  --space-lg: var(--space-6);
+  --space-xl: var(--space-8);
+  --space-2xl: var(--space-16);
+
   /* ---------- 过渡动画 ---------- */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
+  --transition-base: var(--transition-normal); /* 别名：chat 组件旧代码使用 */
   --transition-slow: 0.4s ease;
   /* 弹性曲线：用于悬浮卡片、按钮下沉等「活泼」的微交互 */
   --transition-spring: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -197,14 +207,16 @@ body {
   min-height: 100vh;
 }
 
-/* 链接：默认强调色，悬停加深并出现下划线 */
-a {
+/* 链接：默认强调色，悬停加深并出现下划线。
+   排除按钮变体链接（.btn-primary 等位于 @layer components，层级低于
+   此处未分层的全局样式，若不排除会压过按钮自身的文字色） */
+a:not(.btn-primary):not(.btn-outline):not(.btn-ghost):not(.btn-danger) {
   color: var(--color-accent);
   text-decoration: none;
   transition: color var(--transition-fast);
 }
 
-a:hover {
+a:not(.btn-primary):not(.btn-outline):not(.btn-ghost):not(.btn-danger):hover {
   color: var(--color-accent-dark);
 }
 
@@ -316,7 +328,11 @@ a:hover {
 
   /* ---------- 按钮体系 ---------- */
   /* 基础按钮：所有按钮变体共享的尺寸与交互基底 */
-  .btn {
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost,
+  .btn-danger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -338,7 +354,12 @@ a:hover {
       border-color var(--transition-fast);
   }
 
-  .btn:disabled {
+  /* 禁用态需压过 hover 的上浮/阴影，故保留 !important */
+  .btn:disabled,
+  .btn-primary:disabled,
+  .btn-outline:disabled,
+  .btn-ghost:disabled,
+  .btn-danger:disabled {
     opacity: 0.55;
     cursor: not-allowed;
     transform: none !important;
@@ -347,28 +368,12 @@ a:hover {
 
   /* 主按钮：品牌蓝渐变 + 蓝色发光阴影 */
   .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: 10px 24px;
     background: var(--color-accent-gradient);
     color: #FFFFFF;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    line-height: 1.4;
-    cursor: pointer;
-    user-select: none;
     box-shadow: var(--shadow-accent);
-    transition:
-      opacity var(--transition-fast),
-      transform var(--transition-fast),
-      box-shadow var(--transition-fast);
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: var(--shadow-accent-lg);
     opacity: 0.95;
@@ -379,91 +384,42 @@ a:hover {
     box-shadow: var(--shadow-accent);
   }
 
-  .btn-primary:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-  }
-
   /* 描边按钮：用于次要操作 */
   .btn-outline {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
     padding: 9px 22px;
     background: transparent;
     color: var(--color-accent);
     border: 1.5px solid var(--color-accent);
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    line-height: 1.4;
-    cursor: pointer;
-    user-select: none;
-    transition:
-      background-color var(--transition-fast),
-      color var(--transition-fast),
-      transform var(--transition-fast);
   }
 
-  .btn-outline:hover {
+  .btn-outline:hover:not(:disabled) {
     background: var(--color-accent);
     color: #FFFFFF;
     transform: translateY(-1px);
   }
 
-  .btn-outline:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-    transform: none;
-  }
-
   /* 幽灵按钮：无边框，仅悬停显示底色（用于工具栏、图标旁文字按钮） */
   .btn-ghost {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
     padding: 8px 16px;
     background: transparent;
     color: var(--color-text-secondary);
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
     font-weight: 500;
-    cursor: pointer;
-    transition:
-      background-color var(--transition-fast),
-      color var(--transition-fast);
   }
 
-  .btn-ghost:hover {
+  .btn-ghost:hover:not(:disabled) {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
   }
 
   /* 危险按钮：删除等破坏性操作 */
   .btn-danger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
     padding: 9px 22px;
     background: transparent;
     color: var(--color-danger);
     border: 1.5px solid var(--color-danger);
-    border-radius: var(--radius-md);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    cursor: pointer;
-    transition:
-      background-color var(--transition-fast),
-      color var(--transition-fast);
   }
 
-  .btn-danger:hover {
+  .btn-danger:hover:not(:disabled) {
     background: var(--color-danger);
     color: #FFFFFF;
   }
@@ -574,6 +530,72 @@ a:hover {
   .badge-warning {
     background: var(--color-warning-bg);
     color: var(--color-warning);
+  }
+
+  /* ---------- 弹窗（Modal） ---------- */
+  /* 居中对话框遮罩：chat 组件直接使用；
+     管理后台长表单弹窗加 .modal-overlay--top 修饰类（顶部对齐 + 可滚动） */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--color-bg-mask);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    padding: var(--space-4);
+  }
+
+  .modal-overlay--top {
+    align-items: flex-start;
+    padding: var(--space-8) var(--space-4);
+    overflow-y: auto;
+    animation: fade-in var(--transition-fast);
+  }
+
+  /* 居中对话框卡片（配合 .card 使用），默认窄版 */
+  .modal-card {
+    width: 100%;
+    max-width: 360px;
+    padding: var(--space-6);
+    animation: fade-in-up var(--transition-normal) both;
+  }
+
+  .modal-title {
+    margin: 0 0 var(--space-4);
+    font-size: var(--text-base);
+    color: var(--color-text-primary);
+  }
+
+  .modal-desc {
+    margin: 0 0 var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-text-secondary);
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  /* 管理后台大表单面板（配合 .modal-overlay--top 使用） */
+  .modal-panel {
+    width: 720px;
+    max-width: 95vw;
+    padding: var(--space-6);
+    margin-bottom: var(--space-8);
+  }
+
+  .modal-panel--sm {
+    width: 440px;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
   }
 
   /* ---------- 空状态 ---------- */

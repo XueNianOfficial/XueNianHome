@@ -175,7 +175,7 @@ async function handleImageUpload(e: Event) {
   const files = input.files
   if (!files) return
   for (const file of files) {
-    const dataUrl = await fileToDataUrl(file)
+    const dataUrl = await fileToCompressedDataUrl(file)
     if (dataUrl) addPendingImage(dataUrl)
   }
   // 清空 value，允许重复选择同一文件
@@ -191,6 +191,42 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
+/** 压缩目标：最长边 1920px、JPEG 质量 0.85（兼顾画质与 base64 体积） */
+const IMAGE_MAX_EDGE = 1920
+const IMAGE_QUALITY = 0.85
+
+/**
+ * 图片压缩后转 dataURL：
+ * 等比缩放到最长边 1920，统一转 JPEG（白底填充，避免透明图转 JPEG 黑底）。
+ * GIF / SVG 跳过压缩以保留动画与矢量特性；失败时回退原始 base64。
+ */
+async function fileToCompressedDataUrl(file: File): Promise<string> {
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') {
+    return fileToDataUrl(file)
+  }
+  try {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, IMAGE_MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+    const w = Math.max(1, Math.round(bitmap.width * scale))
+    const h = Math.max(1, Math.round(bitmap.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      bitmap.close()
+      return fileToDataUrl(file)
+    }
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
+    return canvas.toDataURL('image/jpeg', IMAGE_QUALITY)
+  } catch {
+    return fileToDataUrl(file)
+  }
+}
+
 /** 粘贴图片（仅视觉模型），直接加入待发送列表 */
 function handlePaste(e: ClipboardEvent) {
   if (!supportsVision.value) return
@@ -201,7 +237,7 @@ function handlePaste(e: ClipboardEvent) {
       e.preventDefault()
       const file = item.getAsFile()
       if (file) {
-        fileToDataUrl(file).then(dataUrl => {
+        fileToCompressedDataUrl(file).then(dataUrl => {
           if (dataUrl) addPendingImage(dataUrl)
         })
       }
@@ -218,6 +254,9 @@ const audioPlayerRef = ref<HTMLAudioElement | null>(null)
 let mediaRecorder: MediaRecorder | null = null
 let audioChunks: Blob[] = []
 let recordingStartTime = 0
+/** 录音最长 120 秒，到时自动停止并进入确认流程，避免无限录制撑爆内存 */
+const RECORD_MAX_MS = 120_000
+let recordTimer: ReturnType<typeof setTimeout> | null = null
 
 /** 录音时长显示（按开始时间估算） */
 const audioDuration = computed(() => {
@@ -253,6 +292,7 @@ async function startRecording() {
     }
     mediaRecorder.start()
     isRecording.value = true
+    recordTimer = setTimeout(() => stopRecording(), RECORD_MAX_MS)
   } catch (e) {
     console.error('录音失败：', e)
     alert('无法访问麦克风，请检查浏览器权限设置。')
@@ -260,6 +300,10 @@ async function startRecording() {
 }
 
 function stopRecording() {
+  if (recordTimer) {
+    clearTimeout(recordTimer)
+    recordTimer = null
+  }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     mediaRecorder.stop()
   }
@@ -268,6 +312,10 @@ function stopRecording() {
 
 /** 鼠标移出按钮时取消录音（不弹出确认框） */
 function cancelRecording() {
+  if (recordTimer) {
+    clearTimeout(recordTimer)
+    recordTimer = null
+  }
   if (mediaRecorder && mediaRecorder.state === 'recording') {
     // 停止但不触发 onstop 中的确认框
     mediaRecorder.onstop = () => {
@@ -407,46 +455,14 @@ function sendAudio() {
   text-align: right;
 }
 
-/* 录音确认弹窗 */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-bg-mask);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal);
-  padding: var(--space-md);
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 360px;
-  padding: var(--space-lg);
-  animation: fade-in-up var(--transition-base) both;
-}
-
+/* 录音确认弹窗（基础弹窗样式见 main.css 全局 .modal-* 体系） */
 .modal-title {
-  margin: 0 0 var(--space-xs);
-  font-size: var(--text-base);
-  color: var(--color-text-primary);
-}
-
-.modal-desc {
-  margin: 0 0 var(--space-md);
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
 }
 
 .audio-player {
   width: 100%;
   margin-bottom: var(--space-md);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-sm);
 }
 
 @media (max-width: 640px) {

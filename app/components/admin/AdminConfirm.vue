@@ -164,17 +164,6 @@ onBeforeUnmount(() => {
   margin-top: var(--space-6);
 }
 
-/* main.css 的 .btn-danger 未定义禁用态，此处补齐 */
-.confirm-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.confirm-btn:disabled:hover {
-  background: transparent;
-  color: var(--color-danger);
-}
-
 /* ---------- 动画 ---------- */
 @keyframes confirm-fade-in {
   from { opacity: 0; }

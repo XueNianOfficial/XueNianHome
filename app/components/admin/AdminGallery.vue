@@ -93,8 +93,8 @@
     </div>
 
     <!-- 编辑元数据弹窗 -->
-    <div v-if="showEditModal" class="modal-overlay" @click.self="closeEdit">
-      <div class="modal card modal-sm">
+    <div v-if="showEditModal" class="modal-overlay modal-overlay--top" @click.self="closeEdit">
+      <div class="modal-panel card modal-panel--sm">
         <div class="modal-header">
           <h3 class="modal-title">编辑图片信息</h3>
           <button type="button" class="icon-btn" title="关闭" @click="closeEdit">✕</button>
@@ -531,47 +531,13 @@ onMounted(() => {
   color: var(--color-text-muted);
 }
 
-/* ---------- 弹窗 ---------- */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-bg-mask);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: var(--space-8) var(--space-4);
-  z-index: var(--z-modal);
-  overflow-y: auto;
-  animation: modal-fade-in var(--transition-fast);
-}
-
-.modal {
-  width: 720px;
-  max-width: 95vw;
-  padding: var(--space-6);
-  margin-bottom: var(--space-8);
-}
-
-.modal-sm {
-  width: 440px;
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-}
-
+/* ---------- 弹窗（基础样式见 main.css 全局 .modal-* 体系） ---------- */
 .modal-title {
   margin: 0;
   font-size: var(--text-lg);
 }
 
 .modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
   margin-top: var(--space-6);
 }
 
@@ -604,9 +570,4 @@ onMounted(() => {
   min-height: 60px;
 }
 
-/* ---------- 动画 ---------- */
-@keyframes modal-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 </style>

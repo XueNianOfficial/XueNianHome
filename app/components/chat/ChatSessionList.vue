@@ -252,40 +252,15 @@ function formatDate(ts: number): string {
   color: var(--color-danger);
 }
 
-/* 重命名弹窗 */
+/* 重命名弹窗（基础弹窗样式见 main.css 全局 .modal-* 体系；
+   需叠在抽屉等弹层之上，故 z-index 提高一级） */
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--color-bg-mask);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: calc(var(--z-modal) + 1);
-  padding: var(--space-md);
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 360px;
-  padding: var(--space-lg);
-  animation: fade-in-up var(--transition-base) both;
-}
-
-.modal-title {
-  margin: 0 0 var(--space-md);
-  font-size: var(--text-base);
-  color: var(--color-text-primary);
 }
 
 .rename-input {
   width: 100%;
   margin-bottom: var(--space-md);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-sm);
 }
 
 /* 抽屉滑入滑出动画 */

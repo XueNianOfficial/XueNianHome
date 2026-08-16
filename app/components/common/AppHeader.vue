@@ -99,19 +99,25 @@ function isActive(path: string): boolean {
   return route.path.startsWith(path)
 }
 
-/** 监听滚动：超过 10px 即视为已滚动 */
+/** 监听滚动：超过 10px 即视为已滚动（rAF 节流，滚动事件高频触发） */
+let scrollRafId = 0
 function handleScroll() {
-  isScrolled.value = window.scrollY > 10
+  if (scrollRafId) return
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = 0
+    isScrolled.value = window.scrollY > 10
+  })
 }
 
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
   // 初始化一次状态，处理刷新时页面已处于滚动位置的情况
-  handleScroll()
+  isScrolled.value = window.scrollY > 10
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  if (scrollRafId) cancelAnimationFrame(scrollRafId)
 })
 </script>
 

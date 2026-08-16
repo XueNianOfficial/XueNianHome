@@ -369,19 +369,24 @@ function saveActiveSessionId() {
   } catch { /* 忽略 */ }
 }
 
+/** 生成消息/会话/用户唯一 ID */
+function generateId(): string {
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+}
+
 /** 读取（或首次生成）用户唯一标识 */
 function loadUserId(): string {
   if (import.meta.server) return ''
   try {
     let id = localStorage.getItem(USER_ID_KEY)
     if (!id) {
-      id = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+      id = generateId()
       localStorage.setItem(USER_ID_KEY, id)
     }
     return id
   } catch {
     // localStorage 不可用（隐私模式等）时退回内存 ID
-    return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+    return generateId()
   }
 }
 
@@ -1110,6 +1115,33 @@ export function useChat() {
     saveSessions()
   }
 
+  /** 流式请求开始前的统一状态重置（sendMessage / sendMessageAfterEdit 共用） */
+  function beginStreamState() {
+    isLoading.value = true
+    streamingContent.value = ''
+    rawDrawBuffer = ''
+    streamingReasoning.value = ''
+    streamSearched.value = false
+    error.value = null
+  }
+
+  /** 发起 /api/chat 流式请求（sendMessage / sendMessageAfterEdit 共用） */
+  function requestChatStream(session: ChatSession): Promise<Response> {
+    return fetch('/api/chat', withCsrf({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: buildRequestMessages(session),
+        preset: session.preset || undefined,
+        stream: true,
+        // 会话级能力开关（服务端 resolveChatOptions 会按预设能力二次校验）
+        enableThinking: session.enableThinking === true,
+        enableSearch: session.enableSearch === true,
+        customSystemPrompt: session.customSystemPrompt || undefined
+      })
+    }))
+  }
+
   /**
    * 发送用户消息并以 SSE 流式接收 AI 回复
    * 画图模式下改为调用 drawImage（消息内容作为画面描述）
@@ -1164,27 +1196,10 @@ export function useChat() {
     clearPendingImages()
     saveSessions()
 
-    isLoading.value = true
-    streamingContent.value = ''
-    rawDrawBuffer = ''
-    streamingReasoning.value = ''
-    streamSearched.value = false
-    error.value = null
+    beginStreamState()
 
     try {
-      const response = await fetch('/api/chat', withCsrf({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: buildRequestMessages(session),
-          preset: session.preset || undefined,
-          stream: true,
-          // 会话级能力开关（服务端 resolveChatOptions 会按预设能力二次校验）
-          enableThinking: session.enableThinking === true,
-          enableSearch: session.enableSearch === true,
-          customSystemPrompt: session.customSystemPrompt || undefined
-        })
-      }))
+      const response = await requestChatStream(session)
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
@@ -1283,32 +1298,16 @@ export function useChat() {
     const session = sessions.value.find(s => s.id === activeSessionId.value)
     if (!session || session.messages.length === 0) return
 
-    // 达到消息硬上限且未启用滚动窗口时阻断
-    if (session.messages.length >= MESSAGE_MAX_LIMIT && !session.slidingWindow) {
+    // 达到消息硬上限且未启用滚动窗口时阻断（与 sendMessage 同一判断）
+    if (sendBlocked.value) {
       error.value = `当前会话已达到 ${MESSAGE_MAX_LIMIT} 条消息上限，请创建新对话或启用滚动窗口模式继续聊天。`
       return
     }
 
-    isLoading.value = true
-    streamingContent.value = ''
-    streamingReasoning.value = ''
-    streamSearched.value = false
-    error.value = null
+    beginStreamState()
 
     try {
-      const response = await fetch('/api/chat', withCsrf({
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: buildRequestMessages(session),
-          preset: session.preset || undefined,
-          stream: true,
-          // 会话级能力开关（同 sendMessage）
-          enableThinking: session.enableThinking === true,
-          enableSearch: session.enableSearch === true,
-          customSystemPrompt: session.customSystemPrompt || undefined
-        })
-      }))
+      const response = await requestChatStream(session)
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}))
@@ -1510,11 +1509,6 @@ export function useChat() {
   /** 清除当前错误信息 */
   function clearError() {
     error.value = null
-  }
-
-  /** 生成消息/会话唯一 ID */
-  function generateId(): string {
-    return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
   }
 
   // ==================== 初始化 ====================
