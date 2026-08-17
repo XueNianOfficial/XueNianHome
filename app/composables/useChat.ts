@@ -628,7 +628,7 @@ export function useChat() {
     }
   }
 
-  /** 删除会话（同时同步删除服务端历史） */
+  /** 删除会话（仅本地删除，不同步删除服务端） */
   async function deleteSession(sessionId: string) {
     const idx = sessions.value.findIndex(s => s.id === sessionId)
     if (idx === -1) return
@@ -644,14 +644,7 @@ export function useChat() {
     saveSessions()
     saveActiveSessionId()
 
-    // 同步删除服务端历史（失败静默）
-    if (!import.meta.server) {
-      try {
-        await $fetch(`/api/chat/history?userId=${encodeURIComponent(userId.value)}&sessionId=${encodeURIComponent(sessionId)}`, {
-          method: 'DELETE'
-        })
-      } catch { /* 忽略 */ }
-    }
+    // 用户删除对话仅本地删除，不同步删除服务端（管理员可在后台查看）
   }
 
   /** 重命名会话 */

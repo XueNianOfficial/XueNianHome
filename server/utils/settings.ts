@@ -84,6 +84,10 @@ export interface AISettingsPreset {
   allowCustomSystemPrompt?: boolean
   /** 预设头像 URL（可选，为空则使用默认头像） */
   avatar?: string
+  /** 是否支持画图功能（开启后该预设可以使用画图模式） */
+  supportsImageGen?: boolean
+  /** 自定义画图提示词（在用户提示词前添加的前缀，用于引导画图风格） */
+  imageGenPrompt?: string
 }
 
 /**

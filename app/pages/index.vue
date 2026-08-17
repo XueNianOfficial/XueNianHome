@@ -11,8 +11,10 @@
 
     <!-- 关于我简介区 -->
     <section class="about-section">
+      <!-- 横向视差文字背景 -->
+      <HomeParallaxText text="WELCOME" :speed="0.4" direction="right" style="top: -20%; left: -10%;" />
       <div class="container">
-        <CommonScrollReveal direction="up">
+        <HomeMaskReveal :delay="100">
           <div class="about-content">
             <h2 class="section-title">欢迎来到我的数字小窝</h2>
             <p>
@@ -31,7 +33,7 @@
               或者<NuxtLink to="/chat" class="about-link">和我聊聊天</NuxtLink>。
             </p>
           </div>
-        </CommonScrollReveal>
+        </HomeMaskReveal>
       </div>
     </section>
 
@@ -46,6 +48,8 @@
 
     <!-- 最新博客文章（标题自左侧入场，卡片在组件内部逐张交错入场） -->
     <section v-if="latestPosts.length" class="posts-section">
+      <!-- 横向视差文字背景 -->
+      <HomeParallaxText text="BLOG" :speed="0.5" direction="left" style="top: 10%; right: -20%;" />
       <!-- 视差漂浮装饰：随滚动反向轻漂的爪印 -->
       <span ref="decoPawEl" class="float-deco float-deco--paw" aria-hidden="true">🐾</span>
       <div class="container">
@@ -61,6 +65,8 @@
 
     <!-- 画廊最新作品预览（标题自右侧入场，画作逐张弹入 + 错落网格） -->
     <section v-if="galleryPreview.length" class="gallery-section">
+      <!-- 横向视差文字背景 -->
+      <HomeParallaxText text="ARTWORKS" :speed="0.35" direction="right" style="top: 5%; left: -30%;" />
       <!-- 视差漂浮装饰：慢速跟随的雪花 -->
       <span ref="decoSnowEl" class="float-deco float-deco--snow" aria-hidden="true">❄️</span>
       <div class="container">
@@ -76,6 +82,8 @@
 
     <!-- 功能导航区 -->
     <section class="features-section">
+      <!-- 横向视差文字背景 -->
+      <HomeParallaxText text="EXPLORE" :speed="0.45" direction="left" style="top: 15%; right: -25%;" />
       <div class="container">
         <CommonScrollReveal direction="up">
           <h2 class="section-title">✨ 探索更多</h2>
@@ -189,7 +197,9 @@ const decoStarEl = useParallax(-0.06)
 
 /* 关于我简介区 */
 .about-section {
+  position: relative;
   padding: var(--space-12) 0 0;
+  overflow: hidden;
 }
 
 .about-content {
@@ -229,11 +239,14 @@ const decoStarEl = useParallax(-0.06)
 .social-section {
   position: relative;
   padding: var(--space-12) 0 0;
+  overflow: hidden;
 }
 
 /* 功能导航区 */
 .features-section {
+  position: relative;
   padding: var(--space-12) 0 0;
+  overflow: hidden;
 }
 
 .features-section .section-title {

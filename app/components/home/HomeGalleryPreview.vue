@@ -8,21 +8,26 @@
 <template>
   <div class="gallery-preview">
     <div class="preview-grid">
-      <CommonScrollReveal
+      <div
         v-for="(image, i) in images"
         :key="image.src"
-        direction="zoom"
-        :delay="i * 80"
         class="preview-cell"
+        :class="{ 'preview-cell--offset': i % 3 === 1 }"
       >
         <NuxtLink to="/gallery" class="preview-item" :title="image.title || '查看画廊'">
-          <img :src="image.src" :alt="image.title || '画廊作品'" loading="lazy" />
+          <!-- 每张图片用不同种子，生成不同的碎片形状 -->
+          <HomeImageShatter
+            :src="image.src"
+            :alt="image.title || '画廊作品'"
+            :delay="i * 200"
+            :seed="i * 137 + 42"
+          />
           <!-- 悬停时从底部浮现的标题遮罩 -->
           <span class="item-overlay" aria-hidden="true">
             <span class="item-title">{{ image.title }}</span>
           </span>
         </NuxtLink>
-      </CommonScrollReveal>
+      </div>
     </div>
     <div class="section-more">
       <NuxtLink to="/gallery" class="btn-outline">进入画廊 →</NuxtLink>
@@ -87,14 +92,11 @@ defineProps<{
     0 0 0 2px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 
-.preview-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.preview-item :deep(.image-shatter) {
   transition: transform var(--transition-slow);
 }
 
-.preview-item:hover img {
+.preview-item:hover :deep(.image-shatter) {
   transform: scale(1.06);
 }
 

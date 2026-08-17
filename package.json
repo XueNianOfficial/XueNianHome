@@ -2,7 +2,6 @@
   "//": "============================================================",
   "//_name": "雪年个人网站 (XueNianHome)",
   "//_stack": "Nuxt 4 + Vue 3 + Nitro 服务端",
-  "//": "============================================================",
   "name": "XueNianHome",
   "type": "module",
   "private": true,
@@ -24,7 +23,8 @@
     "vue-router": "^5.0.6"
   },
   "devDependencies": {
-    "@types/markdown-it": "^14.1.2"
+    "@types/markdown-it": "^14.1.2",
+    "playwright-core": "^1.62.1"
   },
   "optionalDependencies": {
     "@oxc-minify/binding-linux-x64-gnu": "^0.128.0",

@@ -156,13 +156,14 @@ const DRAW_CAPABILITY_INSTRUCTION =
   '· 两者都要          →  [DRAW:ref=all]场景动作描述[/DRAW]\n' +
   '· 普通画图          →  [DRAW]场景动作描述[/DRAW]\n' +
   '注意：只说\"画好啦\"\"咱画了\"而不输出上述标记，对方什么也看不到！\n' +
-  '一句回复最多一个标记。画雪年时必须用 ref=xn，系统会自动注入角色外观和立绘参考。'
+  '除非用户主动要求画图或者想要看雪年，否则不应该调用画图功能。一句回复最多一个标记。画雪年时必须用 ref=xn，系统会自动注入角色外观和立绘参考。'
 
 /**
  * 构建完整的消息列表（供 callAI 和 callAIStream 共用）
  * - 在消息头部插入 system prompt
  *   优先级：用户自定义（需预设允许，路由层已校验）> 预设自定义 > 默认角色设定
- * - 已配置画图服务时，系统提示词末尾追加自主画图标记协议说明
+ * - 预设启用画图功能时，系统提示词末尾追加自主画图标记协议说明
+ *   （若预设配置了自定义画图提示词，会注入到 DRAW 标记协议说明中）
  * - 多模态消息：仅当预设支持视觉时才携带图片 parts，
  *   否则完全剥离图片，避免把 base64 图片发给不支持视觉的模型
  */
@@ -171,12 +172,23 @@ function buildFullMessages(
   presetName?: string,
   customSystemPrompt?: string
 ) {
-  const { systemPrompt: presetPrompt, supportsVision } = getPresetConfig(presetName)
+  const presetConfig = getPresetConfig(presetName)
+  const { systemPrompt: presetPrompt, supportsVision } = presetConfig
   let systemPromptContent = customSystemPrompt || presetPrompt || getSystemPrompt()
 
-  // 画图密钥已配置才注入标记协议（未配置时注入只会诱导模型输出无法兑现的标记）
-  if (getEffectiveSettings().imageGen?.apiKey) {
-    systemPromptContent += DRAW_CAPABILITY_INSTRUCTION
+  // 检查预设是否启用画图功能（优先）或全局画图是否已配置（兜底）
+  const settings = getEffectiveSettings()
+  const preset = presetName ? settings.presets.find(p => p.name === presetName) : undefined
+  const shouldEnableDraw = preset?.supportsImageGen ?? !!settings.imageGen?.apiKey
+
+  // 预设启用画图功能才注入标记协议
+  if (shouldEnableDraw) {
+    // 如果预设配置了自定义画图提示词，则注入到协议说明中
+    const customDrawPrompt = preset?.imageGenPrompt?.trim()
+    const drawInstruction = customDrawPrompt
+      ? DRAW_CAPABILITY_INSTRUCTION + `\n\n【画图风格引导】${customDrawPrompt}`
+      : DRAW_CAPABILITY_INSTRUCTION
+    systemPromptContent += drawInstruction
   }
 
   return [

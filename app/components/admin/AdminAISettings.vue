@@ -131,6 +131,7 @@
               <span class="preset-caps">
                 <span v-if="preset.supportsVision" title="支持图片">🖼️</span>
                 <span v-if="preset.supportsAudio" title="支持音频">🎤</span>
+                <span v-if="preset.supportsImageGen" title="支持画图">🎨</span>
                 <span
                   class="key-dot"
                   :class="{ set: preset.apiKeyMasked || preset.apiKeyInput }"
@@ -239,7 +240,23 @@
                     <input v-model="preset.allowCustomSystemPrompt" type="checkbox" />
                     <span>✏️ 允许自定义系统提示词</span>
                   </label>
+                  <label class="caps-checkbox">
+                    <input v-model="preset.supportsImageGen" type="checkbox" />
+                    <span>🎨 AI自主画图</span>
+                  </label>
                 </div>
+              </div>
+
+              <!-- AI自主画图配置（仅在启用时显示） -->
+              <div v-if="preset.supportsImageGen" class="form-group">
+                <label class="field-label">AI画图引导语</label>
+                <textarea
+                  v-model="preset.imageGenPrompt"
+                  class="input prompt-input"
+                  rows="3"
+                  placeholder="注入到系统提示词的画图风格引导，例如：画图时请使用二次元插画风格，注重细节和色彩"
+                ></textarea>
+                <p class="field-hint">开启AI自主画图后，AI可以在对话中用[DRAW]标记自主创作插画。此处填写的引导语会追加到系统提示词中，用于指导AI的画图风格。留空则使用默认引导。</p>
               </div>
             </div>
           </div>
@@ -467,6 +484,8 @@ interface PresetForm {
   supportsWebSearch: boolean
   allowCustomSystemPrompt: boolean
   avatar: string
+  supportsImageGen: boolean     // 是否支持画图
+  imageGenPrompt: string        // 画图提示词前缀
   collapsed: boolean     // 是否折叠
   showKey: boolean       // 密钥可见性切换
   avatarFailed: boolean  // 头像预览加载失败标记
@@ -541,6 +560,8 @@ const loadSettings = async () => {
         supportsWebSearch: p.supportsWebSearch || false,
         allowCustomSystemPrompt: p.allowCustomSystemPrompt || false,
         avatar: p.avatar || '',
+        supportsImageGen: p.supportsImageGen || false,
+        imageGenPrompt: p.imageGenPrompt || '',
         collapsed: true,
         showKey: false,
         avatarFailed: false,
@@ -583,6 +604,8 @@ const addPreset = () => {
     supportsWebSearch: false,
     allowCustomSystemPrompt: false,
     avatar: '/images/头像.png',
+    supportsImageGen: false,
+    imageGenPrompt: '',
     collapsed: false,
     showKey: false,
     avatarFailed: false,
@@ -658,6 +681,8 @@ const saveSettings = async () => {
             supportsWebSearch: p.supportsWebSearch,
             allowCustomSystemPrompt: p.allowCustomSystemPrompt,
             avatar: p.avatar,
+            supportsImageGen: p.supportsImageGen,
+            imageGenPrompt: p.imageGenPrompt?.trim() || undefined,
           })),
       },
     })

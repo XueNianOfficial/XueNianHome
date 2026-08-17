@@ -7,6 +7,6 @@
 import { startChatCleanupTimer } from '../utils/chat-storage'
 
 export default defineNitroPlugin(() => {
-  console.log('[聊天存储] 启动定时清理任务（7 天过期）')
+  console.log('[聊天存储] 永久保存模式，已禁用定时清理（管理员手动清理）')
   startChatCleanupTimer()
 })

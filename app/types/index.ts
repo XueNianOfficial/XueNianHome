@@ -158,6 +158,10 @@ export interface ChatPreset {
   allowCustomSystemPrompt?: boolean
   /** 预设头像 URL（可选，为空则使用默认头像） */
   avatar?: string
+  /** 是否支持画图功能 */
+  supportsImageGen?: boolean
+  /** 画图提示词前缀 */
+  imageGenPrompt?: string
 }
 
 /** 提示词模板（聊天欢迎页快捷短语，由 /api/presets 下发） */

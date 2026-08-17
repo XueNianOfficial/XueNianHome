@@ -10,11 +10,11 @@ import { join } from 'node:path'
 
 const CHAT_DIR = join(process.cwd(), 'server/data/chat')
 
-/** 7 天（毫秒） */
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+/** 聊天记录永久保存，不自动过期（管理员手动清理） */
+const MAX_AGE_MS = Infinity
 
-/** 清理检查间隔：每 10 分钟（毫秒） */
-const CLEANUP_INTERVAL_MS = 10 * 60 * 1000
+/** 清理检查间隔：禁用自动清理 */
+const CLEANUP_INTERVAL_MS = Infinity
 
 // ==================== 类型定义 ====================
 
@@ -152,89 +152,30 @@ export function deleteUserSession(userId: string, sessionId: string): boolean {
 
 /**
  * 清理用户数据中的过期消息和会话
- * 裁剪规则（以 7 天为窗口）：
- * 1. 丢弃 lastActiveAt 超过窗口的会话
- * 2. 丢弃会话内 timestamp 超过窗口的消息
- * 3. 再次丢弃被清空消息的会话
- * 注意：直接原地修改传入对象并返回之
+ * 注意：已改为永久保存，此函数仅保留空会话清理逻辑
  */
 function cleanupUserData(data: UserChatData): UserChatData {
-  const now = Date.now()
-  const cutoff = now - MAX_AGE_MS
-
-  // 过滤过期会话
-  data.sessions = data.sessions.filter(s => s.lastActiveAt > cutoff)
-
-  // 过滤每个会话中的过期消息
-  for (const session of data.sessions) {
-    session.messages = session.messages.filter(m => m.timestamp > cutoff)
-  }
-
-  // 再次过滤掉没有消息的会话
+  // 仅过滤掉没有消息的会话（永久保存模式下不按时间过期）
   data.sessions = data.sessions.filter(s => s.messages.length > 0)
-
   return data
 }
 
 /**
- * 清理所有过期用户数据（定期调用）
+ * 清理所有过期用户数据（已改为永久保存，此函数禁用）
  */
 export function cleanupAllExpiredChats(): void {
-  if (!existsSync(CHAT_DIR)) return
-
-  const files = readdirSync(CHAT_DIR)
-  const now = Date.now()
-  const cutoff = now - MAX_AGE_MS
-  let cleanedCount = 0
-
-  for (const file of files) {
-    if (!file.endsWith('.json')) continue
-    const filePath = join(CHAT_DIR, file)
-
-    try {
-      // 先检查文件修改时间（快速判断）
-      const stat = statSync(filePath)
-      if (stat.mtimeMs < cutoff) {
-        unlinkSync(filePath)
-        cleanedCount++
-        continue
-      }
-
-      // 加载并清理内容
-      const raw = readFileSync(filePath, 'utf-8')
-      const data = JSON.parse(raw) as UserChatData
-      const cleaned = cleanupUserData(data)
-
-      if (cleaned.sessions.length === 0) {
-        unlinkSync(filePath)
-        cleanedCount++
-      } else if (JSON.stringify(cleaned.sessions) !== JSON.stringify(data.sessions)) {
-        writeFileSync(filePath, JSON.stringify(cleaned, null, 2), 'utf-8')
-      }
-    } catch {
-      // 删除损坏的文件
-      try { unlinkSync(filePath) } catch { /* 忽略 */ }
-      cleanedCount++
-    }
-  }
-
-  if (cleanedCount > 0) {
-    console.log(`[聊天存储] 清理了 ${cleanedCount} 个过期聊天记录`)
-  }
+  // 永久保存模式：禁用自动清理，管理员手动删除
+  return
 }
 
 // ==================== 定时清理 ====================
 
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
-/** 启动定时清理任务 */
+/** 启动定时清理任务（永久保存模式：已禁用） */
 export function startChatCleanupTimer(): void {
-  if (cleanupTimer) return
-  // 启动后 1 分钟执行首次清理，之后每 10 分钟执行一次
-  setTimeout(() => {
-    cleanupAllExpiredChats()
-    cleanupTimer = setInterval(cleanupAllExpiredChats, CLEANUP_INTERVAL_MS)
-  }, 60_000)
+  // 永久保存模式：不启动定时清理
+  console.log('[聊天存储] 永久保存模式，已禁用自动清理')
 }
 
 /** 停止定时清理任务 */

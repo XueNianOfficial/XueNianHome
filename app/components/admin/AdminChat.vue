@@ -134,7 +134,21 @@
               :class="`detail-msg--${msg.role}`"
             >
               <span class="detail-msg-role">{{ msg.role === 'user' ? '👤' : '🦊' }}</span>
-              <span class="detail-msg-content">{{ truncate(msg.content, 120) }}</span>
+              <div class="detail-msg-body">
+                <!-- 文本内容 -->
+                <span class="detail-msg-content">{{ truncate(msg.content, 120) }}</span>
+                <!-- 图片内容 -->
+                <div v-if="msg.parts && msg.parts.length > 0" class="detail-msg-images">
+                  <img
+                    v-for="(part, idx) in msg.parts.filter(p => p.type === 'image_url')"
+                    :key="idx"
+                    :src="part.image_url?.url"
+                    class="detail-msg-image"
+                    alt="消息图片"
+                    @error="handleImageError"
+                  />
+                </div>
+              </div>
               <span class="detail-msg-time">{{ formatTime(msg.timestamp) }}</span>
             </div>
             <div v-if="session.messages.length === 0" class="empty-msgs">
@@ -302,6 +316,12 @@ function formatTime(ts: number): string {
   if (!ts) return ''
   const d = new Date(ts)
   return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+/** 图片加载失败处理 */
+function handleImageError(e: Event) {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
 }
 
 onMounted(() => {
@@ -533,12 +553,38 @@ onMounted(() => {
   font-size: var(--text-sm);
 }
 
-.detail-msg-content {
+.detail-msg-body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.detail-msg-content {
   font-size: var(--text-sm);
   line-height: 1.5;
   word-break: break-word;
-  min-width: 0;
+}
+
+.detail-msg-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.detail-msg-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.detail-msg-image:hover {
+  transform: scale(1.05);
 }
 
 .detail-msg-time {

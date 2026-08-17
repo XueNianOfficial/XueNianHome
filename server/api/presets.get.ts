@@ -33,7 +33,9 @@ export default defineEventHandler(async () => {
       supportsThinking: effective.supportsThinking || false,
       supportsWebSearch: effective.supportsWebSearch || false,
       allowCustomSystemPrompt: effective.allowCustomSystemPrompt || false,
-      avatar: p.avatar || ''
+      avatar: p.avatar || '',
+      supportsImageGen: p.supportsImageGen || false,
+      imageGenPrompt: p.imageGenPrompt || ''
     }
   })
 
